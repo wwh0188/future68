@@ -55,8 +55,8 @@ class CurveEditorActivity : ThemedActivity() {
         firstFlow = savedInstanceState?.getBoolean("firstFlow") ?: source.firstSegmentFlowMode
         for (index in 0..3) for (flow in listOf(false, true)) {
             val key = "$index-$flow"
-            val initial = if (index < source.stages.size && source.isFlowStage(index) == flow)
-                CurveDraftNumber.format(source.stages[index].target, 1) else if (flow) "1" else "6"
+            val initial = if (source.isFlowStage(index) == flow)
+                CurveDraftNumber.format(source.allStages[index].target, 1) else if (flow) "1" else "6"
             targetInputs[key] = savedInstanceState?.getString("bank-$key") ?: initial
         }
         val sections = TaskCurveEditorForm(this, body, style)
@@ -105,7 +105,7 @@ class CurveEditorActivity : ThemedActivity() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
         (0..3).forEach { index ->
-            val stage = source.stages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
+            val stage = source.allStages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
             val flow = mode == CustomCurveDocument.ControlMode.FLOW && (index > 0 || firstFlow)
             val row = sections.stageRows[index]
             val target = field(row, "target-$index", R.string.curve_target, targetInputs.getValue("$index-$flow"), tableCell = true)
@@ -218,7 +218,15 @@ class CurveEditorActivity : ThemedActivity() {
                 mode, stages, limit, if (mode == CustomCurveDocument.ControlMode.FLOW) flowLogic else pressureLogic,
                 mode == CustomCurveDocument.ControlMode.FLOW && firstFlow,
                 CurveDraftNumber.parse(preinfusion.text.toString(), 0), CurveDraftNumber.parse(firstDuration.text.toString(), 0),
-                description.text.toString()).also { it.validate() }
+                description.text.toString(), source.compensationHundredthsGram,
+                (stageCount until 4).map {
+                    CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1),
+                        CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1))
+                }.withoutEmptyTail()).also {
+                    it.validate()
+                    require(CustomCurveAdapter.profile(it, false) != null ||
+                        CustomCurveFingerprint.of(it) == CustomCurveFingerprint.of(source))
+                }
         }
         fun showError(failure: Throwable) {
             error.text = if (failure is CurveWaterLimitException)

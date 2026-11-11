@@ -136,6 +136,14 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
         addView(label(context.getString(R.string.curve_plan_first_stage_setting) + "  " +
             (plan.firstStageDurationSettingSeconds?.let { context.getString(R.string.curve_plan_seconds_setting, it) } ?: "—")),
             LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        if (plan.compensationHundredthsGram != 0) addView(label(context.getString(R.string.curve_compensation_summary,
+            CurveDraftNumber.format(plan.compensationHundredthsGram, 2))), LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        plan.inactiveStages.forEachIndexed { offset, stage ->
+            val unit = plan.inactiveStageUnits[offset]
+            val (value, unitLabel) = target(CurveStageParameters.Stage(stage.target, unit))
+            addView(label(context.getString(R.string.curve_inactive_stage_summary, stages.size + offset + 1,
+                value, unitLabel, CurveDraftNumber.format(stage.waterTenthsMl, 1)), color = style.muted), LayoutParams(-1, -2))
+        }
         plan.advice?.takeIf { it.isNotBlank() }?.let { advice ->
             addView(label(context.getString(R.string.curve_plan_advice), TaskProductVisualStyle.action),
                 LayoutParams(-1, -2).apply { topMargin = dp(12) })

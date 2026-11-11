@@ -15,6 +15,10 @@ internal object CustomCurveFingerprint {
                 append("|logic=").append(document.pressureLogic).append(',').append(document.firstSegmentFlowMode)
                     .append(',').append(document.preinfusionSeconds).append(',').append(document.firstDurationSeconds)
             }
+            if (document.compensationHundredthsGram != 0 || document.inactiveStages.any { it.target != 0 || it.waterTenthsMl != 0 }) {
+                append("|fidelity-v4=").append(document.compensationHundredthsGram)
+                document.allStages.drop(document.stages.size).forEach { append(';').append(it.target).append(',').append(it.waterTenthsMl) }
+            }
             // Keep historical schema-1 fingerprints stable until an explicit ceiling is saved.
             document.totalWaterLimitMl?.let { append("|totalWaterLimitMl=").append(it) }
         }

@@ -26,21 +26,20 @@ class ShotGate(
     }
 
     fun startBlock(profile: CurveProfile?, coffee: DeviceState, coffeeFrame: HoyiMessage?, coffeeAt: Long?,
-        scale: DeviceState, weightAt: Long?, now: Long, shot: ExtractionState,
+        scale: DeviceState, scaleObservation: ScaleObservation?, now: Long, shot: ExtractionState,
         validated: Boolean = profile?.let(CurveCatalog::validated) == true,
-        scaleObservation: ScaleObservation? = null): String? =
-        startBlockMessage(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot, validated, scaleObservation)?.render { id, args ->
+    ): String? =
+        startBlockMessage(profile, coffee, coffeeFrame, coffeeAt, scale, scaleObservation, now, shot, validated)?.render { id, args ->
             resolve(id, args.map { requireNotNull(it) }.toTypedArray())
         }
 
     fun startBlockMessage(profile: CurveProfile?, coffee: DeviceState, coffeeFrame: HoyiMessage?, coffeeAt: Long?,
-        scale: DeviceState, weightAt: Long?, now: Long, shot: ExtractionState,
+        scale: DeviceState, scaleObservation: ScaleObservation?, now: Long, shot: ExtractionState,
         validated: Boolean = profile?.let(CurveCatalog::validated) == true,
-        scaleObservation: ScaleObservation? = null): ResourceMessage? =
+    ): ResourceMessage? =
         when (ExtractionStartGate.block(profile?.targetHundredthsGram, validated, coffee,
-            // Match upstream 24640347: BOOKOO's legacy timestamp is only for Mock.
-            // Real scale validity, capability and age must come from the same observation.
-            coffeeFrame, coffeeAt, scale, if (mockMode) weightAt else scaleObservation?.takeIf {
+            // Real scales share one observation for capabilities, value validity and receive time.
+            coffeeFrame, coffeeAt, scale, scaleObservation?.takeIf {
                 ScaleReadingPolicy.supportedWeight(it.hundredthsGram)
             }?.receivedAtMs, now, shot, scaleTargetSupported(scaleObservation))) {
             ExtractionStartGate.Block.CURVE_MISSING -> ResourceMessage(R.string.start_block_curve_missing)

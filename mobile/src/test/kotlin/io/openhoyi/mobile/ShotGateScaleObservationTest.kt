@@ -27,12 +27,11 @@ class ShotGateScaleObservationTest {
             assertEquals(7600, it.hundredthsGram)
             assertEquals(1000L, it.receivedAtMs)
         }
-    private fun block(observation: ScaleObservation?, legacyAt: Long? = null, now: Long = 2000,
+    private fun block(observation: ScaleObservation?, now: Long = 2000,
         scale: DeviceState = DeviceState.READY, profile: CurveProfile = weighted,
         gate: ShotGate = this.gate): Int? =
         gate.startBlockMessage(profile, DeviceState.READY, idle, now, scale,
-            legacyAt, now, ExtractionState.IDLE, validated = true,
-            scaleObservation = observation)?.resourceId
+            observation, now, ExtractionState.IDLE, validated = true)?.resourceId
 
     @Test fun freshFelicitaReadingDoesNotNeedBookooTimestamp() {
         assertNull(block(observation(FelicitaScaleProtocolAdapter, felicitaFrame)))
@@ -47,7 +46,7 @@ class ShotGateScaleObservationTest {
         assertNull(block(sample))
         // prepareBrew uses the string facade; startShot uses the structured result above.
         assertNull(gate.startBlock(weighted, DeviceState.READY, idle, 2000, DeviceState.READY,
-            null, 2000, ExtractionState.IDLE, validated = true, scaleObservation = sample))
+            sample, 2000, ExtractionState.IDLE, validated = true))
     }
 
     @Test fun bookooAlsoUsesItsGenericObservationTime() {
@@ -55,29 +54,29 @@ class ShotGateScaleObservationTest {
             this[0] = 3; this[1] = 11; this[6] = 43; this[8] = 0x1D; this[9] = 0xB0.toByte(); this[10] = 43
             this[19] = take(19).fold(0) { sum, byte -> sum xor (byte.toInt() and 255) }.toByte()
         }
-        assertNull(block(observation(BookooScaleProtocolAdapter, bytes), legacyAt = 0))
+        assertNull(block(observation(BookooScaleProtocolAdapter, bytes)))
     }
 
     @Test fun freshLegacyTimestampCannotMaskStaleFutureOrInvalidObservation() {
         val sample = observation(FelicitaScaleProtocolAdapter, felicitaFrame)
         assertNull(block(sample, now = 2500)) // The original 1500 ms boundary is inclusive.
-        assertEquals(R.string.start_block_weight_not_fresh, block(sample, legacyAt = 2501, now = 2501))
+        assertEquals(R.string.start_block_weight_not_fresh, block(sample, now = 2501))
         for (at in listOf(-1L, 3000L)) {
             assertEquals(R.string.start_block_weight_not_fresh,
-                block(sample.copy(receivedAtMs = at), legacyAt = 2500, now = 2500))
+                block(sample.copy(receivedAtMs = at), now = 2500))
         }
         for (grams in listOf(-50_001, 600_001)) {
             assertEquals(R.string.start_block_weight_not_fresh,
-                block(sample.copy(hundredthsGram = grams), legacyAt = 2000))
+                block(sample.copy(hundredthsGram = grams)))
         }
-        assertEquals(R.string.scale_control_unverified, block(null, legacyAt = 2000))
+        assertEquals(R.string.scale_control_unverified, block(null))
     }
 
     @Test fun genericTimestampDoesNotGrantMissingEvidenceOrCapabilities() {
         val sample = observation(FelicitaScaleProtocolAdapter, felicitaFrame)
         for (evidence in listOf(ScaleEvidence.LIVE_READ_ONLY, ScaleEvidence.OFFLINE_CANDIDATE)) {
             assertEquals(R.string.scale_control_unverified,
-                block(sample.copy(evidence = evidence), legacyAt = 2000))
+                block(sample.copy(evidence = evidence)))
         }
         assertEquals(R.string.scale_control_unverified, block(sample.copy(
             capabilities = ScaleCapabilities(tare = true))))
@@ -95,12 +94,13 @@ class ShotGateScaleObservationTest {
         assertNull(block(null, scale = DeviceState.DISCONNECTED, profile = flow))
     }
 
-    @Test fun mockKeepsItsExistingLegacyTimestampAndEvidenceBypass() {
+    @Test fun mockUsesTheSameObservationClockWhileBypassingOnlyControlEvidence() {
         val mock = ShotGate(DefaultStringResources::resolve, mockMode = true)
         val sample = observation(FelicitaScaleProtocolAdapter, felicitaFrame)
-        assertNull(block(null, legacyAt = 2000, gate = mock))
-        assertNull(block(sample.copy(receivedAtMs = -1, evidence = ScaleEvidence.LIVE_READ_ONLY),
-            legacyAt = 2000, gate = mock))
-        assertEquals(R.string.start_block_weight_not_fresh, block(sample, gate = mock))
+        assertNull(block(sample.copy(evidence = ScaleEvidence.LIVE_READ_ONLY), gate = mock))
+        assertEquals(R.string.start_block_weight_not_fresh, block(null, gate = mock))
+        assertEquals(R.string.start_block_weight_not_fresh,
+            block(sample.copy(receivedAtMs = -1), gate = mock))
+        assertEquals(R.string.start_block_weight_not_fresh, block(sample, now = 2501, gate = mock))
     }
 }

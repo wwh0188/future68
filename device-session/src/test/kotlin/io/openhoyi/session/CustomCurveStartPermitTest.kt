@@ -7,15 +7,48 @@ import org.junit.Test
 class CustomCurveStartPermitTest {
     // The shared fixture is in studio mode and reports 94.07 C: keep the real
     // temperature readiness gate satisfied while testing recipe authorization.
-    private val p = StartParameters(false, true, 2, 7, 94, 55, true, 8,
+    private val p = StartParameters(false, true, 2, 7, 94, 55, true, 20,
         20, 38, 0, 0, 150, 12, 400, 0, 0)
+
+    private fun fixture(
+        customCurveStartPermit:(StartParameters)->Boolean={false},
+        customPressureStartPermit:(StartParameters)->Boolean={false}
+    ):CoffeeSessionFixture = CoffeeSessionFixture(customCurveStartPermit,customPressureStartPermit).also { firmware(it,4) }
+
+    private fun firmware(f:CoffeeSessionFixture,patch:Int) {
+        val bytes=f.hex("830113FD5C007D0F350019006E")
+        bytes[2]=(0x10 or patch).toByte()
+        bytes[bytes.lastIndex]=bytes.dropLast(1).fold(0) {acc,b->acc xor (b.toInt() and 255)}.toByte()
+        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,bytes)
+        f.idle(f.now)
+    }
+
+    @Test fun newFlowRequires114AndQueuedFirmwareChangeRevokesStart() {
+        val f=fixture(customCurveStartPermit={true})
+        firmware(f,3)
+        assertNull(f.session.captureStartContext(p))
+        firmware(f,4)
+        val context=requireNotNull(f.session.captureStartContext(p))
+        val queue=DeviceSession::class.java.getDeclaredField("queue").apply {isAccessible=true}.get(f.session) as GattQueue
+        queue.enqueue(GattOperation.Discover,5000) {}
+        val barrier=f.calls.last();val before=f.calls.size
+        var result:OperationResult?=null
+        f.session.startExtraction(p,context) {result=it}
+        assertNull(result)
+        firmware(f,3)
+        f.session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+        assertEquals(before,f.calls.size)
+        assertTrue(result is OperationResult.Failed)
+        f.session.tick()
+        assertEquals(before,f.calls.size)
+    }
 
     @Test fun expandedCurveSubsetNeedsSeparateExactHostPermit() {
         assertTrue(CustomCurveStartPolicy.permits(p))
         assertFalse(CustomPressureStartPolicy.permits(p))
-        assertNull(CoffeeSessionFixture().session.captureStartContext(p))
-        assertNull(CoffeeSessionFixture { true }.session.captureStartContext(p))
-        val f = CoffeeSessionFixture(customCurveStartPermit = { it == p })
+        assertNull(fixture().session.captureStartContext(p))
+        assertNull(fixture { true }.session.captureStartContext(p))
+        val f = fixture(customCurveStartPermit = { it == p })
         assertNotNull(f.session.captureStartContext(p))
         assertNull(f.session.captureStartContext(p.copy(pressureLogic = true)))
         val before = f.calls.size
@@ -32,7 +65,7 @@ class CustomCurveStartPermitTest {
     @Test fun revokedOrThrowingPermitAtDispatchSendsNothing() {
         for (throwOnRevoke in listOf(false, true)) {
             var allowed = true
-            val f = CoffeeSessionFixture(customCurveStartPermit = {
+            val f = fixture(customCurveStartPermit = {
                 if (!allowed && throwOnRevoke) error("recipe unavailable") else allowed
             })
             val context = requireNotNull(f.session.captureStartContext(p))
@@ -51,15 +84,16 @@ class CustomCurveStartPermitTest {
         }
     }
 
-    @Test fun hostCannotExtendValidatedRangesOrAuthorizeLossyOrInactiveValues() {
-        val f = CoffeeSessionFixture(customCurveStartPermit = { true })
+    @Test fun hostCannotExtendValidatedRangesOrAuthorizeLossyValues() {
+        val f = fixture(customCurveStartPermit = { true })
         for (bad in listOf(p.copy(target1 = 9), p.copy(target2 = 101),
-            p.copy(variableFlowLogic = false), p.copy(firstFlowTenths = 151), p.copy(target3 = 1),
-            p.copy(thirdFlowTenths = 10), p.copy(maximumWaterMl = 0), p.copy(maximumWaterMl = 801),
+            p.copy(variableFlowLogic = false), p.copy(firstFlowTenths = 151), p.copy(maximumWaterMl = 0), p.copy(maximumWaterMl = 801),
             p.copy(preinfusionSeconds = 128), p.copy(firstDurationSeconds = 256), p.copy(slot = 6))) {
             assertFalse(CustomCurveStartPolicy.permits(bad))
             assertNull(f.session.captureStartContext(bad))
         }
+        // Inactive fields remain lossless in the encoded recipe; they do not set active-segment bounds.
+        assertTrue(CustomCurveStartPolicy.permits(p.copy(target3 = 1, thirdFlowTenths = 10)))
         val hybrid = p.copy(firstSegmentFlowMode = false, target1 = 5)
         assertTrue(CustomCurveStartPolicy.permits(hybrid))
         assertFalse(CustomCurveStartPolicy.permits(hybrid.copy(target1 = 4)))
@@ -70,7 +104,7 @@ class CustomCurveStartPermitTest {
     }
 
     @Test fun expandedPermitStillRequiresFreshIdleAndSupportedFirmware() {
-        val f = CoffeeSessionFixture(customCurveStartPermit = { true })
+        val f = fixture(customCurveStartPermit = { true })
         assertNotNull(f.session.captureStartContext(p))
         f.now = 1501
         assertNull(f.session.captureStartContext(p))

@@ -14,14 +14,14 @@ object CustomCurveAdapter {
         val totalMl = document.totalWaterLimitMl ?: stages.sumOf { it.waterTenthsMl / 10 }
         val maximumMl = if (scaleConnected && document.targetHundredthsGram > 0)
             maxOf(totalMl, (document.targetHundredthsGram + 24) / 25) else totalMl
-        val targets = stages.map { it.target } + List(4 - stages.size) { 0 }
-        val water = stages.map { it.waterTenthsMl } + List(4 - stages.size) { 0 }
+        val targets = document.allStages.map { it.target }
+        val water = document.allStages.map { it.waterTenthsMl }
         val parameters = StartParameters(document.pressureLogic, document.controlMode == CustomCurveDocument.ControlMode.FLOW,
             stages.size, slot, document.temperatureC, maximumMl, document.firstSegmentFlowMode, document.preinfusionSeconds,
             targets[0], targets[1], targets[2], targets[3], water[0], document.firstDurationSeconds, water[1], water[2], water[3])
         if (!CustomCurveStartPolicy.permits(parameters)) return null
         return CurveProfile(document.id, document.name, "", if (scaleConnected) document.targetHundredthsGram else 0,
-            parameters, scaleMode = scaleConnected)
+            parameters, compensationHundredthsGram = if (scaleConnected) document.compensationHundredthsGram else 0, scaleMode = scaleConnected)
     }
 }
 

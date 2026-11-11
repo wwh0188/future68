@@ -65,6 +65,7 @@ class SingleScaleConnectionSlotTest {
         owner=object:ScaleControl {
             override val ready=true
             override val startAllowed=true
+            override val capabilities=io.openhoyi.protocol.ScaleObservationDecoder.bookooCapabilities
             override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){guard=beforeDispatch;completion=done}
         }
         var result:OperationResult?=null

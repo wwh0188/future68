@@ -10,6 +10,34 @@ class ScaleProtocolAdapterTest {
         this[0]=3;this[1]=11;this[6]=43;this[7]=0;this[8]=7;this[9]=8;this[10]=45;this[12]=10
         this[19]=take(19).fold(0) { a,b -> a xor (b.toInt() and 255) }.toByte()
     }
+    @Test fun duplicateEndpointCannotSubscribeOrWriteEvenWhenOnlyOneHasRequiredProperties() {
+        for (duplicateWrite in listOf(false,true)) {
+            val driver=Driver()
+            val session=DeviceSession(DeviceRole.BOOKOO,driver,{0L})
+            fun complete(result:OperationResult=OperationResult.Success()) {
+                val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)
+            }
+            session.connect("bookoo");complete()
+            val duplicate=if(duplicateWrite)KnownGatt.bookooWrite else KnownGatt.bookooNotify
+            complete(OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false),
+                CharacteristicInfo(duplicate,false,false,false,false))))
+            assertEquals(DeviceState.FAILED,session.state)
+            assertTrue(driver.operations.none {it.third is GattOperation.Subscribe || it.third is GattOperation.Write})
+        }
+    }
+    @Test fun missingScaleCapabilityEvidenceGrantsNoControl() {
+        val scale=object:ScaleControl {
+            override val ready=true
+            override val startAllowed=true
+            override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)=error("must not tare")
+        }
+        assertFalse(scale.capabilities.weight)
+        assertFalse(scale.capabilities.tare)
+        assertFalse(scale.capabilities.validatedWeightControl)
+        assertFalse(scale.capabilities.protocolSupportedWeightControl)
+    }
     @Test fun bookooAdapterPreservesSafeInitializationCommandsAndSigns() {
         val adapter=BookooScaleProtocolAdapter
         assertEquals(listOf("030A02000308","030A0300141E","030A08010000"),adapter.initializationCommands.map { it.frame.hex() })
@@ -80,9 +108,9 @@ class ScaleProtocolAdapterTest {
             }
         }
     }
-    @Test fun sessionEmitsGenericAndLegacySampleOnlyAfterSafeInitFrames() {
-        var now=0L;val driver=Driver();val observations=mutableListOf<ScaleObservation>();val legacy=mutableListOf<BookooSample>()
-        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},weightFrame={s,_->legacy+=s},scaleObservation={observations+=it})
+    @Test fun sessionEmitsGenericObservationOnlyAfterSafeInitFrames() {
+        var now=0L;val driver=Driver();val observations=mutableListOf<ScaleObservation>()
+        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},scaleObservation={observations+=it})
         fun complete(result:OperationResult=OperationResult.Success()) {val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)}
         session.connect("bookoo");complete()
         complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
@@ -91,8 +119,8 @@ class ScaleProtocolAdapterTest {
         for(command in BookooCodec.initializationCommands()) {now=command.delayMs;session.tick();complete()}
         assertEquals(DeviceState.SYNCHRONIZING,session.state)
         session.onNotification(session.generation,KnownGatt.bookooNotify,sample())
-        assertEquals(DeviceState.READY,session.state);assertEquals(1,legacy.size);assertEquals(1,observations.size)
-        assertEquals(legacy.single().weightHundredthsGram,observations.single().hundredthsGram)
+        assertEquals(DeviceState.READY,session.state);assertEquals(1,observations.size)
+        assertEquals(1800,observations.single().hundredthsGram)
         val old=session.generation;session.disconnect();session.onNotification(old,KnownGatt.bookooNotify,sample());assertEquals(1,observations.size)
         session.connect("bookoo");assertEquals(DeviceState.CONNECTING,session.state)
     }

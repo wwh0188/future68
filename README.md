@@ -1,15 +1,15 @@
 # OpenHOYI 77 扩展 · future68 自用仓库
 
-这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的 `dev-77` 制作的个人扩展测试版，保留原项目源码、历史和 GPL v2 许可证。
+这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并采纳 dev-79／dev-82 的相关修复，以及原项目源码、历史和 GPL v2 许可证。
 
 - 补齐拨杆的四种官方模式组合。
 - 支持曲线整体变压／变流、逻辑与变流首段设置。
 - 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
 - 保留 77 版的独立总量上限。
 
-**[从 GitHub 下载 v3 测试 APK（约 18 MB）](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v3.apk)** · [备用下载页](https://openhoyi-77-personal-download.franknoodle2.chatgpt.site) · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v3.json)
+**[从 GitHub 下载 V4 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v4.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v4.json)
 
-应用名为「OpenHOYI 77 扩展」，可与原版并存；私有仓库下载需要登录有权限的 GitHub 账号。v3（80）采纳用户实测通过的 dev-79-scale-fix 对应 Felicita 能力及读数时间修复，普通 Felicita 连接直接支持目标重量，无需 V2 的 ART 启用开关。曲线目标重量须大于 0。可覆盖升级 v1/v2，保持原包名和测试签名；不包含签名私钥或设备密码。个人 V3 的真实按重停水仍待用户实机核对。
+应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V4（83）合入通用电子秤采样/终重与连接保护，并修复个人曲线复制丢补偿、隐藏段参数和纯时间首段误拦；保留拨杆与说明编辑。可覆盖升级 V1/V2/V3，保持原包名和测试签名；不含私钥或设备密码。首段低流量预浸不保证 0 bar，实际运行仍需用户核对，详见 [V4 审查记录](docs/evidence/personal-dev82-audit.md)。
 
 本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
 

@@ -18,9 +18,9 @@ class NotificationOwnerTest {
                     calls += Triple(generation, token, operation); return true
                 }
                 override fun close(generation: Long) {}
-            }, { now }, { observer(it) }, { frame, at ->
+            }, { now }, stateChanged = { observer(it) }, coffeeFrame = { frame, at ->
                 if (frame is Settings) frames += frame.raw to at
-            }, { sample, at -> frames += sample.raw to at })
+            }, scaleObservation = { sample -> frames += sample.raw to sample.receivedAtMs })
         }
         val endpoint get() = if (role == DeviceRole.COFFEE) KnownGatt.coffeeNotify else KnownGatt.bookooNotify
         fun bytes(hex: String) = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()

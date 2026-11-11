@@ -126,6 +126,15 @@ internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = b
     }
     if (doc.preinfusionSeconds != 0) append('\n').append(getString(R.string.curve_preinfusion)).append(": ").append(doc.preinfusionSeconds)
     if (doc.firstDurationSeconds != 0) append('\n').append(getString(R.string.curve_first_duration)).append(": ").append(doc.firstDurationSeconds)
+    if (doc.compensationHundredthsGram != 0) append('\n').append(getString(R.string.curve_compensation_summary,
+        CurveDraftNumber.format(doc.compensationHundredthsGram, 2)))
+    doc.inactiveStages.forEachIndexed { offset, stage ->
+        val index = doc.stages.size + offset
+        append('\n').append(getString(R.string.curve_inactive_stage_summary, index + 1,
+            if (doc.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW) stage.target.toString() else CurveDraftNumber.format(stage.target, 1),
+            if (doc.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW) getString(R.string.curve_control_mode_raw)
+            else if (doc.isFlowStage(index)) "mL/s" else "bar", CurveDraftNumber.format(stage.waterTenthsMl, 1)))
+    }
     if (doc.description.isNotBlank()) append("\n\n").append(getString(R.string.curve_description)).append('\n').append(doc.description)
 }
 internal fun ThemedActivity.profileWaterLimitSummary(doc: CustomCurveDocument): String = doc.totalWaterLimitMl?.let {

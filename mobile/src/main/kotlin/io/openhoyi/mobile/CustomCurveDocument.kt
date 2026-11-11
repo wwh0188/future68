@@ -23,8 +23,12 @@ data class CustomCurveDocument(
     val firstDurationSeconds: Int = 0,
     /** Public recipe description: shared and imported with the curve. */
     val description: String = "",
+    val compensationHundredthsGram: Int = 0,
+    val inactiveStages: List<Stage> = emptyList(),
 ) {
     enum class ControlMode { PRESSURE, FLOW, FLOW_RAW }
+    val allStages: List<Stage> get() = stages + inactiveStages.ifEmpty { List(4 - stages.size) { Stage(0, 0) } }
+    private val fidelityExtended: Boolean get() = compensationHundredthsGram != 0 || inactiveStages.any { it.target != 0 || it.waterTenthsMl != 0 }
     fun isFlowStage(index: Int): Boolean = controlMode == ControlMode.FLOW && (index > 0 || firstSegmentFlowMode)
     private val extended: Boolean get() = controlMode == ControlMode.FLOW || pressureLogic || firstSegmentFlowMode ||
         preinfusionSeconds != 0 || firstDurationSeconds != 0 || description.isNotEmpty()
@@ -39,12 +43,17 @@ data class CustomCurveDocument(
         require(!firstSegmentFlowMode || controlMode == ControlMode.FLOW)
         require(preinfusionSeconds in 0..127 && firstDurationSeconds in 0..255)
         require(description.length <= 8000)
+        require(compensationHundredthsGram in -10000..10000)
+        require(inactiveStages.isEmpty() || inactiveStages.size == 4 - stages.size)
+        inactiveStages.forEach { require(it.target in 0..255 && it.waterTenthsMl in 0..65535) }
+        // Historical FLOW drafts may be outside the current executable subset.
+        // Keep their exact parameters readable; the adapter and dispatch policy gate execution.
         stages.forEachIndexed { index, stage ->
             if (controlMode == ControlMode.FLOW) require(stage.target in (if (isFlowStage(index)) 10 else 5)..100)
         }
         stages.forEach {
             require(it.target in 0..if (controlMode == ControlMode.PRESSURE) 120 else 255)
-            require(it.waterTenthsMl in (if (controlMode != ControlMode.FLOW_RAW) 1 else 0)..65535)
+            require(it.waterTenthsMl in (if (controlMode == ControlMode.PRESSURE) 1 else 0)..65535)
         }
         totalWaterLimitMl?.let {
             if (controlMode != ControlMode.FLOW_RAW) {
@@ -59,15 +68,19 @@ data class CustomCurveDocument(
     internal fun toJson(): JSONObject {
         val array = JSONArray()
         stages.forEach { array.put(JSONObject().put("target", it.target).put("waterTenthsMl", it.waterTenthsMl)) }
-        return JSONObject().put("schema", if (extended) 3 else if (totalWaterLimitMl == null) 1 else 2).put("kind", "openhoyi.local-curve").put("id", id).put("name", name)
+        return JSONObject().put("schema", if (fidelityExtended) 4 else if (extended) 3 else if (totalWaterLimitMl == null) 1 else 2).put("kind", "openhoyi.local-curve").put("id", id).put("name", name)
             .put("temperatureC", temperatureC).put("targetHundredthsGram", targetHundredthsGram)
             .put("controlMode", when (controlMode) { ControlMode.PRESSURE -> "pressure"; ControlMode.FLOW -> "flow"; ControlMode.FLOW_RAW -> "flow-raw" }).put("stages", array)
             .also { json ->
-                if (extended) json.put("totalWaterLimitMl", totalWaterLimitMl ?: JSONObject.NULL)
+                if (extended || fidelityExtended) json.put("totalWaterLimitMl", totalWaterLimitMl ?: JSONObject.NULL)
                     .put("pressureLogic", pressureLogic).put("firstSegmentFlowMode", firstSegmentFlowMode)
                     .put("preinfusionSeconds", preinfusionSeconds).put("firstDurationSeconds", firstDurationSeconds)
                     .put("description", description)
                 else totalWaterLimitMl?.let { json.put("totalWaterLimitMl", it) }
+                if (fidelityExtended) json.put("compensationHundredthsGram", compensationHundredthsGram)
+                    .put("inactiveStages", JSONArray().also { tails -> allStages.drop(stages.size).forEach {
+                        tails.put(JSONObject().put("target", it.target).put("waterTenthsMl", it.waterTenthsMl))
+                    } })
             }
     }
     companion object {
@@ -93,7 +106,9 @@ data class CustomCurveDocument(
                 if (factory != null) false else requireNotNull(parameters).firstSegmentFlowMode,
                 factory?.preinfusionSeconds ?: requireNotNull(parameters).preinfusionSeconds,
                 factory?.firstDurationSeconds ?: requireNotNull(parameters).firstDurationSeconds,
-                factory?.tips.orEmpty()).also { it.validate() }
+                factory?.tips.orEmpty(),
+                factory?.weightCompensationTenthsGram?.let { Math.multiplyExact(it, 10) } ?: requireNotNull(profile).compensationHundredthsGram,
+                (count until 4).map { Stage(targets[it], water[it]) }.withoutEmptyTail()).also { it.validate() }
         }
         fun decode(value: String): CustomCurveDocument {
             require(value.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Curve document too large" }
@@ -101,18 +116,19 @@ data class CustomCurveDocument(
         }
         internal fun fromJson(root: JSONObject): CustomCurveDocument {
             val schema = CurveDocumentJson.number(root, "schema")
-            require(schema in 1..3) { "Unsupported curve version" }
+            require(schema in 1..4) { "Unsupported curve version" }
             val keys = setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages")
             CurveDocumentJson.keys(root, when (schema) {
                 1 -> keys
                 2 -> keys + "totalWaterLimitMl"
-                else -> keys + setOf("totalWaterLimitMl", "pressureLogic", "firstSegmentFlowMode", "preinfusionSeconds", "firstDurationSeconds", "description")
+                else -> keys + setOf("totalWaterLimitMl", "pressureLogic", "firstSegmentFlowMode", "preinfusionSeconds", "firstDurationSeconds", "description") +
+                    (if (schema == 4) setOf("compensationHundredthsGram", "inactiveStages") else emptySet())
             })
             require(CurveDocumentJson.string(root, "kind") == "openhoyi.local-curve")
             val mode = when (CurveDocumentJson.string(root, "controlMode")) {
                 "pressure" -> ControlMode.PRESSURE
                 "flow-raw" -> ControlMode.FLOW_RAW
-                "flow" -> { require(schema == 3); ControlMode.FLOW }
+                "flow" -> { require(schema >= 3); ControlMode.FLOW }
                 else -> error("Unsupported control mode")
             }
             val stages = root.getJSONArray("stages")
@@ -123,15 +139,27 @@ data class CustomCurveDocument(
                     val stage = stages.getJSONObject(it)
                     CurveDocumentJson.keys(stage, setOf("target", "waterTenthsMl"))
                     Stage(CurveDocumentJson.number(stage, "target"), CurveDocumentJson.number(stage, "waterTenthsMl"))
-                }, if (schema == 1 || (schema == 3 && root.isNull("totalWaterLimitMl"))) null else CurveDocumentJson.number(root, "totalWaterLimitMl"),
-                if (schema == 3) CurveDocumentJson.boolean(root, "pressureLogic") else false,
-                if (schema == 3) CurveDocumentJson.boolean(root, "firstSegmentFlowMode") else false,
-                if (schema == 3) CurveDocumentJson.number(root, "preinfusionSeconds") else 0,
-                if (schema == 3) CurveDocumentJson.number(root, "firstDurationSeconds") else 0,
-                if (schema == 3) CurveDocumentJson.string(root, "description") else "").also { it.validate() }
+                }, if (schema == 1 || (schema >= 3 && root.isNull("totalWaterLimitMl"))) null else CurveDocumentJson.number(root, "totalWaterLimitMl"),
+                if (schema >= 3) CurveDocumentJson.boolean(root, "pressureLogic") else false,
+                if (schema >= 3) CurveDocumentJson.boolean(root, "firstSegmentFlowMode") else false,
+                if (schema >= 3) CurveDocumentJson.number(root, "preinfusionSeconds") else 0,
+                if (schema >= 3) CurveDocumentJson.number(root, "firstDurationSeconds") else 0,
+                if (schema >= 3) CurveDocumentJson.string(root, "description") else "",
+                if (schema == 4) CurveDocumentJson.number(root, "compensationHundredthsGram") else 0,
+                if (schema == 4) root.getJSONArray("inactiveStages").let { tails ->
+                    require(tails.length() == 4 - stages.length())
+                    (0 until tails.length()).map { index -> tails.getJSONObject(index).let { tail ->
+                        CurveDocumentJson.keys(tail, setOf("target", "waterTenthsMl"))
+                        Stage(CurveDocumentJson.number(tail, "target"), CurveDocumentJson.number(tail, "waterTenthsMl"))
+                    } }
+                }.withoutEmptyTail() else emptyList()).also { it.validate() }
         }
     }
 }
+
+/** Zero tail slots are implicit in legacy documents and retain their schema/fingerprint. */
+internal fun List<CustomCurveDocument.Stage>.withoutEmptyTail(): List<CustomCurveDocument.Stage> =
+    if (all { it.target == 0 && it.waterTenthsMl == 0 }) emptyList() else this
 
 internal class CurveWaterLimitException(val maximumMl: Int) : IllegalArgumentException()
 

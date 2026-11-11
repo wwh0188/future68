@@ -32,7 +32,6 @@ class ExtractionActivity : ThemedActivity() {
     internal lateinit var feedbackUi: BrewFeedbackDialog
         private set
     private val machineAlarms by lazy { MachineAlarms(this) }
-    private val shotGate by lazy { ShotGate(this) }
     private val presetSlot: Int by lazy { intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7).takeIf { it in 1..5 } ?: 7 }
     private var service: MobileService? = null
     private var bound = false
@@ -351,10 +350,7 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service ?: return
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
-            owner.snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), owner.shotState,
-            validated = profile?.let(library::validated) == true,
-            scaleObservation = owner.snapshot.scaleObservation)
+        val blocked = owner.extractionStartBlock(profile, selected() != null && profile == null)
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
@@ -414,12 +410,8 @@ class ExtractionActivity : ThemedActivity() {
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = if (owner?.manualShotActive == true) getString(R.string.extraction_manual_block)
-            else if (item != null && profile == null) getString(R.string.extraction_invalid_curve_block)
-            else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-                snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), state,
-                validated = profile?.let(library::validated) == true,
-                scaleObservation = snapshot.scaleObservation)
+        val blocked = if (owner == null) getString(R.string.service_unavailable)
+            else owner.extractionStartBlock(profile, item != null && profile == null)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             getString(R.string.extraction_disconnect_advice_suffix) else
             owner?.manualSafetyMessage?.let { "\n$it" }.orEmpty()
@@ -545,7 +537,6 @@ class ExtractionActivity : ThemedActivity() {
             else -> "—"
         }))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
-            ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
         quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))
