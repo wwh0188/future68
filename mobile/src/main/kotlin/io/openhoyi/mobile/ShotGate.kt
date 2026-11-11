@@ -7,6 +7,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.DeviceConnectionGate
 import io.openhoyi.session.ExtractionStartGate
+import io.openhoyi.session.ScaleReadingPolicy
 
 /** Host-side preflight; session also checks readiness and allowed wire frames at send time. */
 class ShotGate(
@@ -37,7 +38,11 @@ class ShotGate(
         validated: Boolean = profile?.let(CurveCatalog::validated) == true,
         scaleObservation: ScaleObservation? = null): ResourceMessage? =
         when (ExtractionStartGate.block(profile?.targetHundredthsGram, validated, coffee,
-            coffeeFrame, coffeeAt, scale, weightAt, now, shot, scaleControlValidated(scaleObservation))) {
+            // Match upstream 24640347: BOOKOO's legacy timestamp is only for Mock.
+            // Real scale validity, capability and age must come from the same observation.
+            coffeeFrame, coffeeAt, scale, if (mockMode) weightAt else scaleObservation?.takeIf {
+                ScaleReadingPolicy.supportedWeight(it.hundredthsGram)
+            }?.receivedAtMs, now, shot, scaleTargetSupported(scaleObservation))) {
             ExtractionStartGate.Block.CURVE_MISSING -> ResourceMessage(R.string.start_block_curve_missing)
             ExtractionStartGate.Block.CURVE_UNVERIFIED -> ResourceMessage(R.string.start_block_curve_unverified)
             ExtractionStartGate.Block.EXTRACTION_UNSETTLED -> ResourceMessage(R.string.start_block_extraction_unsettled)
@@ -53,6 +58,6 @@ class ShotGate(
         }
 
     /** Mock builds have no real scale evidence. Keep the bypass in one place so UI and service cannot diverge. */
-    private fun scaleControlValidated(observation: ScaleObservation?): Boolean =
-        mockMode || observation?.eligibleForControl == true
+    private fun scaleTargetSupported(observation: ScaleObservation?): Boolean =
+        mockMode || observation?.eligibleForTargetWeight == true
 }

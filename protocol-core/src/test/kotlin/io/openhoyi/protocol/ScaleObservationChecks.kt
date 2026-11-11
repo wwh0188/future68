@@ -1,7 +1,7 @@
 package io.openhoyi.protocol
 
 /** Software evidence only; never represents a connection or physical control acceptance. */
-fun main() {
+internal fun runScaleObservationChecks() {
     fun hex(s:String)=s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     val frame=ByteArray(20).apply {
         this[0]=3;this[1]=11;this[6]=45;this[8]=7;this[9]=8;this[10]=43;this[12]=10
@@ -27,5 +27,16 @@ fun main() {
         check(candidate.evidence==ScaleEvidence.OFFLINE_CANDIDATE && !candidate.eligibleForControl)
         check(!candidate.capabilities.tare && !candidate.capabilities.validatedWeightControl)
     }
+    val documented=generic.copy(evidence=ScaleEvidence.DOCUMENTED_TRANSPORT,
+        capabilities=ScaleCapabilities(tare=true,protocolSupportedWeightControl=true))
+    check(documented.capabilities.supportsTargetWeight && documented.eligibleForTargetWeight)
+    check(!documented.eligibleForControl && !documented.capabilities.validatedWeightControl)
+    check(!documented.capabilities.automaticTare)
+    for(evidence in listOf(ScaleEvidence.LIVE_READ_ONLY,ScaleEvidence.OFFLINE_CANDIDATE))
+        check(!documented.copy(evidence=evidence).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=ScaleCapabilities(tare=true)).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=ScaleCapabilities(protocolSupportedWeightControl=true)).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=ScaleCapabilities(weight=false,tare=true,
+        protocolSupportedWeightControl=true)).eligibleForTargetWeight)
     println("PASS scale observation equivalence, malformed rejection and offline-only evidence")
 }

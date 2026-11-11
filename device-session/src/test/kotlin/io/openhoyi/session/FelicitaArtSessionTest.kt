@@ -31,20 +31,22 @@ class FelicitaArtSessionTest {
         }
         override fun stop(done:(OperationResult)->Unit) {stops++;done(OperationResult.Success())}
     }
-    private inner class Fixture {
+    private inner class Fixture(val adapter:ScaleProtocolAdapter=FelicitaScaleProtocolAdapter) {
         var now=100L
         var serial=0L
         val driver=Driver()
         val samples=mutableListOf<ScaleObservation>()
         val tare=StandaloneTare(clock={now})
         var observed:((ScaleObservation)->Unit)?=null
-        val adapter=FelicitaArtScaleProtocolAdapter
-        val endpoint=adapter.notifyEndpoint
-        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},scaleAdapter=adapter,
+        val endpoint=requireNotNull(adapter.notifyEndpoint)
+        val session:DeviceSession=DeviceSession(DeviceRole.BOOKOO,driver,{now},stateChanged={state->
+            // Match NativeDeviceHub: any loss of READY revokes tare/controller evidence immediately.
+            if(state!=DeviceState.READY) {tare.disconnected();extraction.scaleDisconnected()}
+        },scaleAdapter=adapter,
             scaleObservation={sample->samples+=sample;tare.sample(++serial,sample.hundredthsGram);observed?.invoke(sample)})
         val coffee=Coffee()
         val control=ScaleSessionControl(session,tare,{serial})
-        val extraction=ExtractionController(coffee,control,{now})
+        val extraction:ExtractionController=ExtractionController(coffee,control,{now})
         init {observed=extraction::weight}
         fun complete(result:OperationResult=OperationResult.Success()) {
             val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)
@@ -68,20 +70,27 @@ class FelicitaArtSessionTest {
             assertEquals(ExtractionState.RUNNING,extraction.state);assertEquals(1,coffee.starts)
         }
     }
-    @Test fun capturedGramFramesAreSignedAndEligibleOnlyOnExplicitArtProfile() {
-        val f=Fixture();f.subscribe();assertTrue(f.writes().isEmpty())
-        for((frame,expected) in listOf(positive to 6361,negative to -3792,zero to 0)) {
-            f.receive(frame)
-            val sample=f.samples.last()
-            assertEquals(expected,sample.hundredthsGram);assertTrue(sample.eligibleForControl)
-            assertEquals(ScaleEvidence.VERIFIED_TRANSPORT,sample.evidence)
-            assertEquals(ByteFrame(frame),sample.raw)
+    @Test fun defaultAndSavedArtAliasShareDocumentedSignedGramTargetEvidence() {
+        for(adapter in listOf(FelicitaScaleProtocolAdapter,FelicitaArtScaleProtocolAdapter)) {
+            val f=Fixture(adapter);f.subscribe();assertTrue(f.writes().isEmpty())
+            for((frame,expected) in listOf(positive to 6361,negative to -3792,zero to 0)) {
+                f.receive(frame)
+                val sample=f.samples.last()
+                assertEquals(expected,sample.hundredthsGram);assertFalse(sample.eligibleForControl)
+                assertTrue(sample.eligibleForTargetWeight)
+                assertEquals(ScaleEvidence.DOCUMENTED_TRANSPORT,sample.evidence)
+                assertEquals(ByteFrame(frame),sample.raw)
+            }
+            assertFalse(f.adapter.transportVerified);assertTrue(f.adapter.documentedTransport)
+            assertTrue(f.adapter.capabilities.supportsTargetWeight);assertFalse(f.adapter.capabilities.validatedWeightControl)
+            assertFalse(f.adapter.capabilities.automaticTare);assertNull(f.adapter.heartbeat)
+            assertFalse(f.adapter.capabilities.deviceTimer);assertFalse(f.adapter.capabilities.battery)
+            assertFalse(FelicitaScaleProtocolAdapter.capabilities.validatedWeightControl)
+            assertFalse(FelicitaReadOnlyScaleProtocolAdapter.capabilities.supportsTargetWeight)
         }
-        assertTrue(f.adapter.transportVerified);assertFalse(f.adapter.documentedTransport)
-        assertFalse(f.adapter.capabilities.automaticTare);assertNull(f.adapter.heartbeat)
-        assertFalse(f.adapter.capabilities.deviceTimer);assertFalse(f.adapter.capabilities.battery)
-        assertFalse(FelicitaScaleProtocolAdapter.capabilities.validatedWeightControl)
-        assertFalse(FelicitaReadOnlyScaleProtocolAdapter.capabilities.validatedWeightControl)
+        for(adapter in ScaleProtocolRegistry.connectable.filter {
+            it.id !in setOf(FelicitaScaleProtocolAdapter.id,FelicitaArtScaleProtocolAdapter.id,BookooScaleProtocolAdapter.id)
+        })assertFalse(adapter.capabilities.supportsTargetWeight)
     }
     @Test fun nonGramUnknownUnitAndDamagedFramesRevokeReadyWithoutRefreshingWeight() {
         val f=Fixture();f.ready()
@@ -136,24 +145,39 @@ class FelicitaArtSessionTest {
             ScaleSelection(address,FelicitaScaleProtocolAdapter.id),address,readOnly.protocolId))
     }
     @Test fun weightShotWaitsForPostWriteZeroThenStartsOnceAndStopsOnceAfterSevenSeconds() {
-        val f=Fixture();f.beginWeightShot()
-        assertEquals("54",ByteFrame(f.writes().single().bytes).hex())
-        val started=f.now
-        f.receive(zero);assertEquals(1,f.coffee.starts)
-        f.now=started+6998;f.receive(positive);assertEquals(0,f.coffee.stops)
-        f.now=started+7000;f.receive(positive)
-        assertEquals(StopReason.TARGET_WEIGHT,f.extraction.stopReason);assertEquals(1,f.coffee.stops)
-        f.receive(positive);f.extraction.tick();assertEquals(1,f.coffee.stops)
-        assertEquals(1,f.writes().size)
+        for(adapter in listOf(FelicitaScaleProtocolAdapter,FelicitaArtScaleProtocolAdapter)) {
+            val f=Fixture(adapter);f.beginWeightShot()
+            assertEquals("54",ByteFrame(f.writes().single().bytes).hex())
+            val started=f.now
+            f.receive(zero);assertEquals(1,f.coffee.starts)
+            f.now=started+6998;f.receive(positive);assertEquals(0,f.coffee.stops)
+            f.now=started+7000;f.receive(positive)
+            assertEquals(StopReason.TARGET_WEIGHT,f.extraction.stopReason);assertEquals(1,f.coffee.stops)
+            f.receive(positive);f.extraction.tick();assertEquals(1,f.coffee.stops)
+            assertEquals(1,f.writes().size)
+        }
     }
     @Test fun disconnectionAndStaleWeightRequestOneProtectiveStop() {
         val disconnected=Fixture();disconnected.beginWeightShot()
-        disconnected.session.disconnect();disconnected.tare.disconnected();disconnected.extraction.scaleDisconnected()
+        disconnected.session.disconnect()
         disconnected.extraction.tick();assertEquals(1,disconnected.coffee.stops)
         assertEquals(StopReason.SCALE_UNAVAILABLE,disconnected.extraction.stopReason)
         val stale=Fixture();stale.beginWeightShot()
         stale.now+=1501;stale.extraction.tick();stale.extraction.tick()
         assertEquals(1,stale.coffee.stops);assertEquals(StopReason.SCALE_UNAVAILABLE,stale.extraction.stopReason)
+    }
+    @Test fun lossOfReadyImmediatelyAbortsPreparationOrStopsRunningShot() {
+        for(active in listOf(false,true)) {
+            val f=Fixture()
+            if(active)f.beginWeightShot() else {
+                f.ready();assertTrue(f.extraction.start(parameters,2700,0));f.complete()
+            }
+            f.receive(zero.apply {this[9]='k'.code.toByte()})
+            assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+            assertEquals(if(active)ExtractionState.STOP_REQUESTED else ExtractionState.IDLE,f.extraction.state)
+            assertEquals(if(active)1 else 0,f.coffee.stops)
+            f.receive(zero);assertEquals(if(active)1 else 0,f.coffee.starts)
+        }
     }
     @Test fun unknownTareDoesNotRetryAndOldGenerationZeroCannotConfirmReplacementTare() {
         val unknown=Fixture();unknown.ready();assertTrue(unknown.extraction.start(parameters,2700,0))
@@ -175,5 +199,23 @@ class FelicitaArtSessionTest {
         f.now+=1500;f.extraction.tick();f.now+=30_000;f.extraction.tick()
         assertTrue(f.writes().isEmpty());assertEquals(StandaloneTare.State.IDLE,f.tare.state)
         assertEquals(0,f.coffee.stops)
+    }
+    @Test fun protocolTargetCapabilityRequiresDocumentedWritableTareTransport() {
+        for(adapter in listOf(
+            object:ScaleProtocolAdapter by FelicitaScaleProtocolAdapter {
+                override val documentedTransport=false
+                override val transportVerified=true
+            },
+            object:ScaleProtocolAdapter by FelicitaScaleProtocolAdapter {
+                override val capabilities=ScaleCapabilities(protocolSupportedWeightControl=true)
+            },
+            object:ScaleProtocolAdapter by FelicitaScaleProtocolAdapter {
+                override val tareCommand:EncodedCommand?=null
+            }
+        )) {
+            val driver=Driver()
+            try {DeviceSession(DeviceRole.BOOKOO,driver,{0},scaleAdapter=adapter);fail("invalid protocol support")}
+            catch(_:IllegalArgumentException) {assertTrue(driver.operations.isEmpty())}
+        }
     }
 }

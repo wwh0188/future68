@@ -7,9 +7,9 @@
 - 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
 - 保留 77 版的独立总量上限。
 
-**[从 GitHub 下载 v2 测试 APK（约 18 MB）](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v2.apk)** · [备用下载页](https://openhoyi-77-personal-download.franknoodle2.chatgpt.site) · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v2.json)
+**[从 GitHub 下载 v3 测试 APK（约 18 MB）](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v3.apk)** · [备用下载页](https://openhoyi-77-personal-download.franknoodle2.chatgpt.site) · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v3.json)
 
-应用名为「OpenHOYI 77 扩展」，可与原版并存；私有仓库下载需要登录有权限的 GitHub 账号。v2（79）增加 Felicita ART 按重量停止的显式测试联动，连接后在电子秤设置中启用，并设置大于 0 的曲线目标重量。可覆盖升级 v1，保持原包名和测试签名；不包含签名私钥或设备密码。已完成软件检查，真实按重停水仍待实机验收。
+应用名为「OpenHOYI 77 扩展」，可与原版并存；私有仓库下载需要登录有权限的 GitHub 账号。v3（80）采纳用户实测通过的 dev-79-scale-fix 对应 Felicita 能力及读数时间修复，普通 Felicita 连接直接支持目标重量，无需 V2 的 ART 启用开关。曲线目标重量须大于 0。可覆盖升级 v1/v2，保持原包名和测试签名；不包含签名私钥或设备密码。个人 V3 的真实按重停水仍待用户实机核对。
 
 本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
 

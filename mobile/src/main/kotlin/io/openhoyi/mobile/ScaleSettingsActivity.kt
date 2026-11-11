@@ -5,16 +5,15 @@ import android.widget.Switch
 import android.widget.TextView
 import io.openhoyi.session.DeviceState
 
-/** Display preferences and an explicit connection-profile choice for captured ART transport. */
+/** App-local display preferences only. No fictional device feature toggles. */
 class ScaleSettingsActivity:ScaleOwnerActivity() {
     private lateinit var capabilities:TextView
-    private var felicitaControl:FelicitaWeightControlCard?=null
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         val visual=SettingsVisualStyle(this)
         val style=visual.palette
         // This page retains ScaleOwner's original binding/refresh lifecycle; only its shell is opt-in.
-        val body=visual.page(this,R.string.scale_settings,R.string.felicita_settings_subtitle,688,"scale")
+        val body=visual.page(this,R.string.scale_settings,R.string.scale_settings_subtitle,688,"scale")
         body.setPadding(style.dp(24),body.paddingTop,style.dp(24),body.paddingBottom)
         val prefs=getSharedPreferences("scale_tool",MODE_PRIVATE)
         val display = settingsGroup(this, body, getString(R.string.scale_display_precision),visual)
@@ -35,7 +34,6 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
             importantForAccessibility=android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
         },android.widget.LinearLayout.LayoutParams(style.dp(24),style.dp(24)).apply {marginEnd=style.dp(16)})
         capabilityRow.addView(capabilities,android.widget.LinearLayout.LayoutParams(0,-2,1f));style.add(card,capabilityRow)
-        felicitaControl=FelicitaWeightControlCard(this,body,visual,{owner})
         val help=settingsGroup(this,body,getString(R.string.scale_usage_instructions),visual)
         listOf(R.string.scale_timer_title to R.string.scale_timer_help,
             R.string.scale_operation_limits to R.string.scale_active_guard,
@@ -48,7 +46,6 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
     }
     override fun renderScale() {
         if(!::capabilities.isInitialized)return
-        felicitaControl?.render()
         val snapshot=owner?.snapshot
         val actual=snapshot?.scaleCapabilities?.takeIf {snapshot.scaleState==DeviceState.READY && !BuildConfig.MOCK_MODE}
         capabilities.text=if(actual==null)getString(R.string.scale_capability_no_device) else {
@@ -59,5 +56,4 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
             }
         }
     }
-    override fun onStop() {felicitaControl?.close();super.onStop()}
 }

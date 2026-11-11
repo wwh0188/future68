@@ -2,7 +2,7 @@ package io.openhoyi.session
 
 import io.openhoyi.protocol.*
 
-/** Independently recorded legacy profiles. No hardware, automatic-tare or machine-control claim.
+/** Independently recorded legacy profiles. No hardware-validation or automatic-tare claim.
  * Wire evidence and exact scope: docs/plans/legacy-scale-parity.md. No endpoint probing/retries. */
 abstract class LegacyDocumentedScaleAdapter:ScaleProtocolAdapter {
     final override val transportVerified=false
@@ -13,10 +13,10 @@ abstract class LegacyDocumentedScaleAdapter:ScaleProtocolAdapter {
     override fun decode(bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation> = newDecoder()!!(bytes,receivedAtMs)
 }
 
-/** Existing saved felicita-ascii-read-only selections stay read-only. Re-select to enable tare. */
+/** Saved felicita-ascii-read-only selections stay read-only. The writable profile supports target weight. */
 object FelicitaScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
     override val id="felicita-ascii-legacy"
-    override val capabilities=ScaleCapabilities(tare=true)
+    override val capabilities=ScaleCapabilities(tare=true,protocolSupportedWeightControl=true)
     override val notifyEndpoint=FelicitaReadOnlyScaleProtocolAdapter.notifyEndpoint
     override val writeEndpoint=notifyEndpoint
     override val initializationCommands=emptyList<TimedCommand>()
@@ -28,7 +28,7 @@ object FelicitaScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
                     ScaleEvidence.DOCUMENTED_TRANSPORT,raw=result.value.raw))
                 else {onEvent(ScaleProtocolEvent.ReadingInvalidated);DecodeResult.Unknown(result.value.raw)}
             is DecodeResult.Invalid->{onEvent(ScaleProtocolEvent.ReadingInvalidated);result}
-            is DecodeResult.Unknown->result
+            is DecodeResult.Unknown->{onEvent(ScaleProtocolEvent.ReadingInvalidated);result}
         }
     }
 }

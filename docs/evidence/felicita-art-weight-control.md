@@ -1,5 +1,7 @@
 # Felicita ART 按重量停止：证据与边界
 
+这是 V2 的历史协议层记录。用户随后报告 V2 仍被拦截，原因是普通连接能力及 mobile 启动时间来源仍未打通；V3 已改为采纳用户实测参考版的默认 Felicita 路径，见 [当前证据说明](felicita-reference-adoption.md)。下文不作为 V3 的启用步骤或完整入口验收证明。
+
 适用范围是用户个人版 79 的显式 ART 测试适配，来源为个人版 78／上游 dev-77。普通 Felicita legacy/read-only 的能力声明保持不变。不将单元测试或 GATT 成功回调当作实际停水证明。
 
 ## 用户诊断
