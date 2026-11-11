@@ -1,2 +1,4 @@
 2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f  downloads/OpenHOYI-77-Personal-v1.apk
 97a9f750786a395f4c77c848715cc33aa2d1261cd595677fca63e463a04660f2  downloads/build-record.json
+3abc3fc20052f057a769741ac5532254951d5719c5e952c0a6d917653d791a85  downloads/OpenHOYI-77-Personal-v2.apk
+1e66927ac57f96d4e5f3a56c538109df8bed072db81642a742630607fdd5c7c2  downloads/build-record-v2.json
