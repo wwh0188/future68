@@ -1,4 +1,21 @@
-# OpenHOYI
+# OpenHOYI 77 扩展 · future68 自用仓库
+
+这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的 `dev-77` 制作的个人扩展测试版，保留原项目源码、历史和 GPL v2 许可证。
+
+- 补齐拨杆的四种官方模式组合。
+- 支持曲线整体变压／变流、逻辑与变流首段设置。
+- 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
+- 保留 77 版的独立总量上限。
+
+**[从 GitHub 下载测试 APK（约 18 MB）](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v1.apk)** · [备用下载页](https://openhoyi-77-personal-download.franknoodle2.chatgpt.site) · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record.json)
+
+应用名为「OpenHOYI 77 扩展」，可与原版并存；私有仓库下载需要登录有权限的 GitHub 账号。已完成软件检查，尚未完成真实咖啡机验收。安装包保持原测试签名和版本，不包含签名私钥或设备密码。
+
+本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
+
+---
+
+# 原项目：OpenHOYI
 
 [产品介绍网站](https://boolean93.github.io/openhoyi/) · [功能状态](docs/native-feature-status.md) · [实机验收记录](docs/alpha-acceptance.md)
 

@@ -1,0 +1,51 @@
+{
+  "applicationName": "OpenHOYI 77 扩展",
+  "packageName": "io.openhoyi.mobile.personal",
+  "versionName": "0.1.77-personal.1",
+  "versionCode": 78,
+  "sourceBase": "69e31001d689f659a00055b121f86b574955f353",
+  "sourceCommit": "e53fda440ff316d6fea22d5c0555e3080025872a",
+  "sourceCommitVerified": false,
+  "apkSha256": "2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f",
+  "apkBytes": 18344192,
+  "signerCertificateSha256": "4ad87267785cadb93d961dba472586bfd53dde2e8dd2ffa7d939b4a6af7d060f",
+  "signatureVerified": true,
+  "mockMode": false,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "gradleResult": "BUILD SUCCESSFUL; 173 actionable tasks",
+  "checks": [
+    "protocol-core:check",
+    "device-session:check",
+    "mobile:testDebugUnitTest",
+    "mobile:assemblePersonal",
+    "mobile:assembleDebug",
+    "mobile:assembleMock",
+    "mobile:lintDebug",
+    "original-APK control oracle replay",
+    "localization catalog/resources/APK resource validation",
+    "independent Astra source review"
+  ],
+  "junit": {
+    "device-session": {
+      "tests": 725,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 525,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    }
+  },
+  "lint": {
+    "Warning": 444
+  },
+  "hardwareVerified": false,
+  "screenVerified": false,
+  "installed": false,
+  "upstreamPublished": false,
+  "sourceArchiveScope": "Native Android source, build scripts and text evidence; excludes website and documentation screenshots. No vendor APK or signing private key."
+}
