@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_lever_pressure_constant">Variable pressure + Constant pressure</string>
+    <string name="control_lever_pressure_follow">Variable pressure + Follow</string>
+    <string name="control_lever_flow_hs">Variable flow + Hs</string>
+    <string name="control_lever_flow_ls">Variable flow + Ls</string>
+</resources>

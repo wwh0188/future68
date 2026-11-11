@@ -305,9 +305,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             leverModeValue=text(functionsCard,getString(R.string.settings_lever_missing),14)
             val lever=action(functionsCard,getString(R.string.home_lever_button)) {
                 if(BuildConfig.MOCK_MODE){Toast.makeText(host,R.string.home_lever_mock,Toast.LENGTH_SHORT).show();return@action}
-                val modes=listOf(MachineSettingChange.LeverMode(false,false),MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))
+                val modes=listOf(MachineSettingChange.LeverMode(false,false),MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true),MachineSettingChange.LeverMode(false,true))
                 val dialog=AlertDialog.Builder(host).setTitle(R.string.home_lever_choose_title)
-                    .setItems(arrayOf(getString(R.string.home_lever_manual),getString(R.string.home_lever_pressure),getString(R.string.home_lever_flow))) {_,index->confirm(modes[index])}.create()
+                    .setItems(modes.map(settingsPresentation::change).toTypedArray()) {_,index->confirm(modes[index])}.create()
                 dialogs+=dialog;AppDialog.show(dialog)
             }
             controlButtons+=lever

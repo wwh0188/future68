@@ -39,6 +39,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     val metadata: List<LinearLayout> = List(3) { MetadataCell() }
     val stageRows = List(4) { cell() }
     val stageHeader = style.visual.row()
+    val modeSettings = cell()
     val waterLimit = cell()
     val supportingBody = cell()
     private val stageContent = cell()
@@ -182,11 +183,12 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         column.addView(lower, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
         lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
         lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
+        stageContent.addView(modeSettings, LinearLayout.LayoutParams(-1, -2))
         stageContent.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
         stageContent.addView(columns, LinearLayout.LayoutParams(-1, -2))
         val firstWidth = maxOf(dp(80), dp(20) + kotlin.math.ceil(android.text.Layout.getDesiredWidth(activity.getString(R.string.profiles_stage, 4),
             style.visual.text("", TaskProductVisualStyle.body).paint).toDouble()).toInt())
-        listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).forEachIndexed { index, label ->
+        listOf(R.string.import_table_stage, R.string.curve_target, R.string.import_table_water).forEachIndexed { index, label ->
             val heading = style.visual.text(activity.getString(label), TaskProductVisualStyle.auxiliary, secondary = true).apply { setPadding(0, 0, 0, dp(8)) }
             columns.addView(heading, if (index == 0) LinearLayout.LayoutParams(firstWidth, -2)
                 else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })

@@ -65,6 +65,17 @@ class SettingsWriteTrackerTest {
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
 
+    @Test fun flowLsRequiresBothIndependentBitsInNewReadback() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.LeverMode(false, true)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 10))
+        assertFalse(tracker.observe(10, initial.copy(flags = 0x40)))
+        assertFalse(tracker.observe(11, initial.copy(flags = 0xC0)))
+        assertFalse(tracker.observe(12, initial.copy(flags = 0)))
+        assertTrue(tracker.observe(13, initial.copy(flags = 0x40)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
+
     @Test fun standbyDelayRequiresCorrectMinutesAndPreservedTemperature() {
         val tracker = SettingsWriteTracker()
         val token = requireNotNull(tracker.begin(MachineSettingChange.StandbyDelay(30, initial.standbyTemperatureC)))

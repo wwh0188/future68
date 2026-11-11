@@ -830,6 +830,10 @@ class MobileService : Service() {
                     (application as MobileApplication).curves.permitsCustomPressureStart(
                         getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
                 },
+                customCurveStartPermit = { parameters ->
+                    (application as MobileApplication).curves.permitsCustomCurveStart(
+                        getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
+                },
                 onCoffeeReconnect = { address ->
                     if(recentReadyCoffeeAddress?.equals(address,ignoreCase=true)!=true)false
                     else connectRememberedCoffee(address,automatic=true)==RememberedCoffeeConnection.STARTED

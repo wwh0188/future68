@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_lever_pressure_constant">变压 + 恒压</string>
+    <string name="control_lever_pressure_follow">变压 + 跟随</string>
+    <string name="control_lever_flow_hs">变流 + Hs</string>
+    <string name="control_lever_flow_ls">变流 + Ls</string>
+</resources>

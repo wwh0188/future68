@@ -17,7 +17,7 @@ class CurveShareActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val style = TaskProductVisualStyle(this)
-        val body = style.page(this, getString(R.string.profiles_share_title), getString(R.string.profiles_text_hint))
+        val body = style.page(this, getString(R.string.profiles_share_title), getString(R.string.curve_share_scope))
         // One page-level 8dp gap, not the legacy header's 12dp plus another 8dp.
         ((body.tag as BeanPageRegions).header.layoutParams as LinearLayout.LayoutParams).bottomMargin = style.dp(8)
         val doc = runCatching {
@@ -63,14 +63,14 @@ class CurveShareActivity : ThemedActivity() {
         }
         style.add(actions, style.text(getString(R.string.profiles_export_first), TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val support = style.column("product/share/support")
-        style.add(support, style.text(getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only), TaskProductVisualStyle.auxiliary,
+        style.add(support, style.text(getString(if (CustomCurveAdapter.profile(doc, false) != null)
+            R.string.curve_modes_compatible else R.string.profiles_read_only), TaskProductVisualStyle.auxiliary,
             "product/share/compatibility", true), 16)
         style.action(support, getString(R.string.ui_full_details), "product/share/details") {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
         }
         if(!workspace.portraitScroll) support.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        style.add(support, style.text(getString(R.string.profiles_text_hint), TaskProductVisualStyle.auxiliary,
+        style.add(support, style.text(getString(R.string.curve_share_scope), TaskProductVisualStyle.auxiliary,
             "product/share/privacy", true), 16)
         if(workspace.portraitScroll) actions.addView(support,LinearLayout.LayoutParams(-1,-2))
         else actions.addView(android.widget.ScrollView(this).apply {
@@ -114,14 +114,19 @@ internal fun ThemedActivity.profileDocument(id: String?): CustomCurveDocument? {
 }
 internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = buildString {
     append(getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size))
-    if (doc.totalWaterLimitMl != null || doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
+    if (doc.totalWaterLimitMl != null || doc.controlMode != CustomCurveDocument.ControlMode.FLOW_RAW)
         append('\n').append(profileWaterLimitSummary(doc))
+    append('\n').append(profileModeSummary(doc))
     doc.stages.forEachIndexed { index, stage ->
         append('\n')
-        append(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-            getString(R.string.profiles_stage_pressure_summary, index + 1, CurveDraftNumber.format(stage.target, 1), CurveDraftNumber.format(stage.waterTenthsMl, 1))
-        else getString(R.string.profiles_stage_raw_summary, index + 1, stage.target, CurveDraftNumber.format(stage.waterTenthsMl, 1)))
+        if (doc.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW)
+            append(getString(R.string.profiles_stage_raw_summary, index + 1, stage.target, CurveDraftNumber.format(stage.waterTenthsMl, 1)))
+        else append(getString(R.string.curve_stage_target_summary, index + 1, CurveDraftNumber.format(stage.target, 1),
+            if (doc.isFlowStage(index)) "mL/s" else "bar", CurveDraftNumber.format(stage.waterTenthsMl, 1)))
     }
+    if (doc.preinfusionSeconds != 0) append('\n').append(getString(R.string.curve_preinfusion)).append(": ").append(doc.preinfusionSeconds)
+    if (doc.firstDurationSeconds != 0) append('\n').append(getString(R.string.curve_first_duration)).append(": ").append(doc.firstDurationSeconds)
+    if (doc.description.isNotBlank()) append("\n\n").append(getString(R.string.curve_description)).append('\n').append(doc.description)
 }
 internal fun ThemedActivity.profileWaterLimitSummary(doc: CustomCurveDocument): String = doc.totalWaterLimitMl?.let {
     getString(R.string.curve_plan_total_limit, it)
@@ -140,10 +145,11 @@ internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocu
         maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         tag = "full-text-details"
     }
-    HoyiUi.label(this, primary, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
-    if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
-        primary.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.label(this, primary, getString(R.string.profiles_stage_caption), 14, muted = true)
+    HoyiUi.label(this, primary, getString(if (CustomCurveAdapter.profile(doc, false) != null) R.string.curve_modes_compatible else R.string.profiles_read_only), 14, true)
+    if (doc.controlMode != CustomCurveDocument.ControlMode.FLOW_RAW) {
+        primary.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target }; preview = CurveStageParameters.preview(
+            CurveLibraryItem(doc.id, doc.name, "", "", null, customDocument = doc)) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.label(this, primary, getString(R.string.task_form_stage_caption), 14, muted = true)
     } else {
         HoyiUi.label(this, primary, getString(R.string.profiles_flow_raw), 15, muted = true)
     }
@@ -160,4 +166,13 @@ internal fun ThemedActivity.profilePreviewDialog(doc: CustomCurveDocument) {
         dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94f).toInt(), (resources.displayMetrics.heightPixels * 0.78f).toInt())
     }
     beanShowDialog(dialog)
+}
+
+internal fun ThemedActivity.profileModeSummary(doc: CustomCurveDocument): String = when (doc.controlMode) {
+    CustomCurveDocument.ControlMode.FLOW_RAW -> getString(R.string.profiles_flow_raw)
+    CustomCurveDocument.ControlMode.PRESSURE -> getString(R.string.curve_mode_pressure) + " · " + getString(
+        if (doc.pressureLogic) R.string.curve_pressure_follow else R.string.curve_pressure_constant)
+    CustomCurveDocument.ControlMode.FLOW -> getString(R.string.curve_mode_flow) + " · " + getString(
+        if (doc.pressureLogic) R.string.curve_flow_hs else R.string.curve_flow_ls) + " · " + getString(
+        if (doc.firstSegmentFlowMode) R.string.curve_first_flow else R.string.curve_first_pressure)
 }

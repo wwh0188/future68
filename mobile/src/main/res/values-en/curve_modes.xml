@@ -1,0 +1,27 @@
+<resources>
+    <string name="curve_control_mode">Overall control mode</string>
+    <string name="curve_mode_pressure">Pressure</string>
+    <string name="curve_mode_flow">Flow</string>
+    <string name="curve_pressure_logic">Pressure logic</string>
+    <string name="curve_pressure_constant">Constant</string>
+    <string name="curve_pressure_follow">Follow</string>
+    <string name="curve_flow_logic">Flow logic</string>
+    <string name="curve_flow_hs">Hs</string>
+    <string name="curve_flow_ls">Ls</string>
+    <string name="curve_first_mode">First flow stage</string>
+    <string name="curve_first_pressure">Pressure (bar)</string>
+    <string name="curve_first_flow">Flow (mL/s)</string>
+    <string name="curve_mode_hint">Each unit keeps its own input. New flow targets start at 1 mL/s. Later flow stages all use flow (1–10 mL/s); first-stage pressure is 0.5–10 bar. Pressure mode supports 0–12 bar.</string>
+    <string name="curve_description">Curve description (shared with the curve)</string>
+    <string name="curve_description_hint">Grinder setting, basket, dose, etc. Multiple lines supported.</string>
+    <string name="curve_preinfusion">Preinfusion time (s, 0–127)</string>
+    <string name="curve_first_duration">First stage time (s, 0–255; 0 uses water amount)</string>
+    <string name="curve_target">Stage target</string>
+    <string name="curve_stage_target_summary">Stage %1$d · %2$s %3$s · %4$s mL</string>
+    <string name="curve_modes_execution">Supports official pressure / flow combinations. Starting still requires confirmation. Target weight and stage water must match machine precision.</string>
+    <string name="curve_modes_compatible">Parameters meet local curve start limits</string>
+    <string name="curve_modes_invalid">Invalid parameters: name 1–100 characters, temperature 75–105 °C, cup weight 0–200 g. Check target ranges for the selected mode, positive stage water and time limits. Description: up to 8000 characters.</string>
+    <string name="curve_copy_warning">Factory and captured curves are saved as local copies, keeping recipe parameters and the curve description.</string>
+    <string name="curve_share_scope">Shares the name, recipe parameters and curve description. Personal reviews, inventory and raw device records are excluded.</string>
+    <string name="curve_raw_target">Raw target (unknown unit)</string>
+</resources>

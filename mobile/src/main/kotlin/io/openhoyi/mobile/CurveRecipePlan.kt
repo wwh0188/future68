@@ -30,8 +30,10 @@ internal data class CurveRecipePlan(
             }
             item.customDocument?.let { document ->
                 return CurveRecipePlan(preview, document.stages.map { it.waterTenthsMl }, document.totalWaterLimitMl ?:
-                    document.assignedWaterTenthsMl.takeIf { document.controlMode == CustomCurveDocument.ControlMode.PRESSURE && it % 10 == 0 }?.div(10), null, null,
-                    null, document.targetHundredthsGram, null)
+                    document.assignedWaterTenthsMl.takeIf { document.controlMode != CustomCurveDocument.ControlMode.FLOW_RAW && it % 10 == 0 }?.div(10),
+                    document.preinfusionSeconds.takeUnless { document.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW },
+                    document.firstDurationSeconds.takeUnless { document.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW },
+                    null, document.targetHundredthsGram, document.description.takeIf { it.isNotBlank() })
             }
             return CurveRecipePlan(preview, emptyList(), null, null, null, null, null, null)
         }

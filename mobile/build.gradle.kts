@@ -38,6 +38,13 @@ android {
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
         }
+        // A separate, installable test identity keeps the author's signed app and its data intact.
+        create("personal") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".personal"
+            matchingFallbacks += listOf("debug")
+            buildConfigField("boolean", "MOCK_MODE", "false")
+        }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

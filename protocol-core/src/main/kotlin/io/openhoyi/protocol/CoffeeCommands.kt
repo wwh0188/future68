@@ -44,9 +44,9 @@ sealed interface MachineSettingChange {
         override fun matches(settings: Settings) =
             settings.standbyTemperatureC == celsius && settings.standbyMinutes == minutes
     }
-    /** Legacy lever control: manual, auto pressure, or auto flow. */
+    /** Independent legacy bits. flow=false: pressure=false/true means constant/follow.
+     * flow=true: pressure=false/true means Ls/Hs. */
     data class LeverMode(val pressure: Boolean, val flow: Boolean) : MachineSettingChange {
-        init { require(!flow || pressure) }
         override fun matches(settings: Settings) =
             (settings.flags and 0x80 != 0) == pressure && (settings.flags and 0x40 != 0) == flow
     }

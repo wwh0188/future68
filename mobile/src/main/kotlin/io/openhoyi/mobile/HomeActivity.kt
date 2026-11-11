@@ -370,7 +370,7 @@ class HomeActivity : ThemedActivity() {
         primary.addView(recipeMetrics, LinearLayout.LayoutParams(-1, -2))
         val summaryRule = View(this).apply { setBackgroundColor(productStyle.border); tag = "product/home/summary-divider" }
         primary.addView(summaryRule, LinearLayout.LayoutParams(-1, dp(1)))
-        val stageHeading = productStyle.text(getString(R.string.curve_library_stage_heading), TaskProductVisualStyle.section, "product/home/stage-title")
+        val stageHeading = productStyle.text(getString(R.string.curve_target), TaskProductVisualStyle.section, "product/home/stage-title")
         productStyle.add(primary, stageHeading, 8)
         stagePreview = CurveStageView(this).apply {
             minimumHeight = dp(160); tag = "stage-preview"; pressureColor = true; productVisualStyle = this@HomeActivity.productStyle
@@ -628,10 +628,10 @@ class HomeActivity : ThemedActivity() {
             MachineSettingChange.LeverMode(false, false),
             MachineSettingChange.LeverMode(true, false),
             MachineSettingChange.LeverMode(true, true),
+            MachineSettingChange.LeverMode(false, true),
         )
         AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_choose_title))
-            .setItems(arrayOf(getString(R.string.home_lever_manual),
-                getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
+            .setItems(modes.map(settingsPresentation::change).toTypedArray()) { _, index ->
                 val change = modes[index]
                 AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_confirm_title))
                     .setMessage(getString(R.string.home_lever_confirmation_message, settingsPresentation.change(change)))
@@ -793,20 +793,23 @@ class HomeActivity : ThemedActivity() {
         hasRecipeMetrics = displayed != null
         selectionDetails = title + "\n\n" + (displayed?.let { getString(if (library.canStart(it))
             R.string.home_curve_startable else R.string.home_curve_readonly) + "\n" + it.details } ?: "") + "\n\n" + getString(R.string.task_brew_preview_note)
-        val targets = displayed?.let(CurveStageParameters::pressureTargets).orEmpty()
+        val stageModel = displayed?.let(CurveStageParameters::preview)?.takeIf { it.renderable }
+        val targets = stageModel?.stages?.map { it.target }.orEmpty()
         if (stagePreview.targets != targets) stagePreview.targets = targets
-        val previewDescription = getString(R.string.task_brew_preview_note) + " " +
-            targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
-                " " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString(", ")
+        if (stagePreview.preview != stageModel) stagePreview.preview = stageModel
+        val targetRows = stageModel?.stages?.mapIndexed { index, stage ->
+            getString(R.string.chart_stage, (index + 1).toString()) + " · " +
+                String.format(Locale.ROOT, "%.1f %s", stage.target / 10.0,
+                    if (stage.unit == CurveStageParameters.Unit.FLOW_ML_PER_SECOND) "mL/s" else "bar")
+        }.orEmpty()
+        val previewDescription = getString(R.string.task_brew_preview_note) + " " + targetRows.joinToString(", ")
         if (stagePreview.contentDescription?.toString() != previewDescription)
             stagePreview.contentDescription = previewDescription
         previewUnavailable.show(getString(R.string.task_brew_no_pressure_preview))
         stageFallbackText.show(getString(R.string.task_brew_compact_preview) + "\n" +
             getString(R.string.task_brew_preview_note) + "\n" +
             (if (hasRecipeMetrics) recipeMetrics.contentDescription.toString() + "\n" else "") +
-            if (targets.isEmpty()) getString(R.string.task_brew_no_pressure_preview) else
-                targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
-                    " · " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString("\n"))
+            if (targets.isEmpty()) getString(R.string.task_brew_no_pressure_preview) else targetRows.joinToString("\n"))
         updateStagePreviewVisibility()
         brewButton.show(when {
             cupActive -> getString(R.string.task_brew_live_state)

@@ -15,8 +15,7 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
     val name = style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
         maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
     }
-    val mode = style.text(getString(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-        R.string.task_chart_pressure else R.string.home_lever_flow), TaskProductVisualStyle.auxiliary,
+    val mode = style.text(if (doc.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW) getString(R.string.curve_raw_target) else profileModeSummary(doc), TaskProductVisualStyle.auxiliary,
         "product/share/mode").apply {
         setTextColor(style.accent); setPadding(style.dp(8), 0, style.dp(8), 0)
         background = style.shape(style.selected); contentDescription = doc.controlMode.name
@@ -55,9 +54,10 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
     }
     style.add(preview, metrics, 8)
     var chart: CurveStageView? = null
-    if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
+    if (doc.controlMode != CustomCurveDocument.ControlMode.FLOW_RAW) {
         style.add(preview, style.text(getString(R.string.profiles_preview), TaskProductVisualStyle.section), 8)
-        chart = CurveStageView(this).apply { targets = doc.stages.map { it.target }; productVisualStyle = style; tag = "product/share/stage" }
+        chart = CurveStageView(this).apply { targets = doc.stages.map { it.target }; this.preview = CurveStageParameters.preview(
+            CurveLibraryItem(doc.id, doc.name, "", "", null, customDocument = doc)); productVisualStyle = style; tag = "product/share/stage" }
         preview.addView(chart, LinearLayout.LayoutParams(-1, style.dp(160)))
     } else style.add(preview, style.text(getString(R.string.profiles_flow_raw), TaskProductVisualStyle.body, secondary = true), 8)
     val caption = if (chart != null) style.text(getString(R.string.task_form_stage_caption), TaskProductVisualStyle.auxiliary,
@@ -130,13 +130,15 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         }
     }
     // Raw flow values are kept raw and labelled; they never become pressure targets.
-    row(listOf(getString(R.string.import_table_stage), getString(if (chart != null) R.string.import_table_pressure else R.string.profiles_flow_raw),
+    row(listOf(getString(R.string.import_table_stage), getString(if (chart != null) R.string.curve_target else R.string.curve_raw_target),
         getString(R.string.import_table_water)), true)
     doc.stages.forEachIndexed { index, stage ->
         row(listOf(getString(R.string.profiles_stage, index + 1),
-            if (chart != null) CurveDraftNumber.format(stage.target, 1) else stage.target.toString(),
+            if (chart != null) CurveDraftNumber.format(stage.target, 1) + (if (doc.isFlowStage(index)) " mL/s" else " bar") else stage.target.toString(),
             CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
     }
+    if (doc.description.isNotBlank()) style.add(preview, style.text(doc.description, TaskProductVisualStyle.body,
+        "product/share/description"), 16)
     if(!workspace.portraitScroll) workspace.onPrimarySpaceAvailable = { width, height ->
         val contentWidth = (width - workspace.primaryBody.paddingLeft - workspace.primaryBody.paddingRight).coerceAtLeast(0)
         val exactWidth = View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY)

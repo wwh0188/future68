@@ -105,6 +105,23 @@ fun main() {
         StartParameters(true,true,3,7,92,70,false,0,20,38,20,0,160,5,400,140,0) to "02DF5C0046001426140000A0050190008C000059",
         StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0) to "02DF5C00880014231200009605019000820000AC")
     starts.forEach { (p,h) -> verify(CoffeeCommands.start(p).frame.hex()==h) }
+    val customControlLines = requireNotNull(object {}.javaClass.getResourceAsStream("/custom_control_wire.tsv"))
+        .bufferedReader().use { it.readLines() }
+    verify(customControlLines.first() == "# custom-control-wire-v1\tapk-sha256=26133c2ac8ecf3d5ee7682bafa6555b1c78836749c937477b05214a88d8ea238\tsource-sha256=4ed90ea99240b7f37373cdb5c9df0bf315103ca7aea6aaab6f37b2c58dd564d7\tencoder-sha256=06ac7d037cb241abec5c16a1825645792c1942d8356dadd2b35e9b99fef85a31")
+    verify(customControlLines.size == 10)
+    customControlLines.drop(1).forEach { line ->
+        val (name, values, frame) = line.split('\t')
+        val v = values.split(',').map(String::toInt)
+        if (name == "lever") {
+            verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(v[0] == 1, v[1] == 1)).frame.hex() == frame)
+        } else {
+            val p = StartParameters(v[0] == 1, v[1] == 1, v[2], v[3], v[4], v[5], v[6] == 1,
+                v[7], v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15], v[16])
+            verify(CoffeeCommands.start(p).frame.hex() == frame)
+            verify(CustomCurveStartPolicy.permits(p))
+            verify(!CustomPressureStartPolicy.permits(p))
+        }
+    }
     verify(CoffeeCommands.stop(7).frame.hex()=="0200070000")
     verify(CoffeeCommands.stop(1).frame.hex()=="0200010000")
     verify(CoffeeCommands.stop(5).frame.hex()=="0200050000")
@@ -150,7 +167,7 @@ fun main() {
     rejected { MachineSettingChange.StandbyTemperature(-1, 15) }
     rejected { MachineSettingChange.StandbyTemperature(101, 15) }
     rejected { MachineSettingChange.StandbyTemperature(70, 45) }
-    rejected { MachineSettingChange.LeverMode(false,true) }
+    verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(false,true)).frame.hex()=="0302000100")
     rejected { MachineSettingChange.BrewTemperature(74) }
     rejected { MachineSettingChange.BrewCompensation(-1) }
     rejected { MachineSettingChange.BrewCompensation(6) }

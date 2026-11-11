@@ -21,9 +21,10 @@ class MachineSettingsPresentationTest {
             io.openhoyi.protocol.MachineSettingChange.StandbyDelay(60, 70) to "自动待机：1 小时",
             io.openhoyi.protocol.MachineSettingChange.StandbyDelay(120, 70) to "自动待机：2 小时",
             io.openhoyi.protocol.MachineSettingChange.StandbyTemperature(70, 30) to "待机温度 70 °C",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, false) to "拨杆模式：手动",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, false) to "拨杆模式：自动压力",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, true) to "拨杆模式：自动流量",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, false) to "拨杆模式：变压 + 恒压",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, false) to "拨杆模式：变压 + 跟随",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, true) to "拨杆模式：变流 + Hs",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, true) to "拨杆模式：变流 + Ls",
             io.openhoyi.protocol.MachineSettingChange.BrewTemperature(93) to "萃取温度 93 °C",
             io.openhoyi.protocol.MachineSettingChange.BrewCompensation(3) to "冲泡温差补偿 3 °C",
             io.openhoyi.protocol.MachineSettingChange.SteamTemperature(125) to "蒸汽温度 125 °C",
@@ -71,10 +72,10 @@ class MachineSettingsPresentationTest {
         assertEquals("尚未收到机器设置", presentation.overview(null))
         assertEquals("尚未收到机器设置", presentation.settings(null))
         assertEquals("拨杆模式：尚未收到设置", presentation.leverMode(null))
-        assertEquals("拨杆模式：手动", presentation.leverMode(settings))
-        assertEquals("拨杆模式：自动压力", presentation.leverMode(settings.copy(flags = 0x80)))
-        assertEquals("拨杆模式：自动流量", presentation.leverMode(settings.copy(flags = 0xC0)))
-        assertTrue(presentation.leverMode(settings.copy(flags = 0x40)).contains("未知组合"))
+        assertEquals("拨杆模式：变压 + 恒压", presentation.leverMode(settings))
+        assertEquals("拨杆模式：变压 + 跟随", presentation.leverMode(settings.copy(flags = 0x80)))
+        assertEquals("拨杆模式：变流 + Hs", presentation.leverMode(settings.copy(flags = 0xC0)))
+        assertEquals("拨杆模式：变流 + Ls", presentation.leverMode(settings.copy(flags = 0x40)))
     }
 
     @Test fun weeklyScheduleRequiresBothPartsAndKeepsUnknownEnabledMaskRaw() {

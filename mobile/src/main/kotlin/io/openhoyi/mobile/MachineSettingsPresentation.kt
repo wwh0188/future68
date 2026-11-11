@@ -25,12 +25,7 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
         if (value == null) return text(R.string.settings_lever_missing)
         val pressure = value.flags and 0x80 != 0
         val flow = value.flags and 0x40 != 0
-        return text(R.string.settings_lever_prefix) + when {
-            !pressure && flow -> text(R.string.settings_lever_unknown, "0x%02X".format(value.flags and 0xC0))
-            flow -> text(R.string.home_lever_flow)
-            pressure -> text(R.string.home_lever_pressure)
-            else -> text(R.string.home_lever_manual)
-        }
+        return text(R.string.settings_lever_prefix) + text(leverModeLabel(pressure, flow))
     }
     fun change(value: MachineSettingChange): String = changeMessage(value).render { id, args ->
         resolve(id, args.map { requireNotNull(it) }.toTypedArray())
@@ -48,17 +43,20 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
             else -> ResourceMessage(R.string.machine_settings_minutes, value.minutes.toString())
         })
         is MachineSettingChange.StandbyTemperature -> ResourceMessage(R.string.settings_change_standby_temperature, value.celsius.toString())
-        is MachineSettingChange.LeverMode -> ResourceSequence(ResourceMessage(R.string.settings_lever_prefix), ResourceMessage(when {
-            value.flow -> R.string.home_lever_flow
-            value.pressure -> R.string.home_lever_pressure
-            else -> R.string.home_lever_manual
-        }))
+        is MachineSettingChange.LeverMode -> ResourceSequence(ResourceMessage(R.string.settings_lever_prefix),
+            ResourceMessage(leverModeLabel(value.pressure, value.flow)))
         is MachineSettingChange.BrewTemperature -> ResourceMessage(R.string.settings_change_brew_temperature, value.celsius.toString())
         is MachineSettingChange.BrewCompensation -> ResourceMessage(R.string.settings_change_compensation, value.celsius.toString())
         is MachineSettingChange.SteamTemperature -> ResourceMessage(R.string.settings_change_steam_temperature, value.celsius.toString())
         is MachineSettingChange.BrewHeating -> ResourceMessage(R.string.settings_change_brew_heating, enabledMessage(value.enabled))
         is MachineSettingChange.SteamHeating -> ResourceMessage(R.string.settings_change_steam_heating, enabledMessage(value.enabled))
         is MachineSettingChange.Light -> ResourceMessage(R.string.settings_change_light, enabledMessage(value.enabled))
+    }
+    private fun leverModeLabel(pressure: Boolean, flow: Boolean): Int = when {
+        flow && pressure -> R.string.control_lever_flow_hs
+        flow -> R.string.control_lever_flow_ls
+        pressure -> R.string.control_lever_pressure_follow
+        else -> R.string.control_lever_pressure_constant
     }
     private fun enabledMessage(enabled: Boolean) = ResourceMessage(if (enabled) R.string.setting_on else R.string.setting_off)
     fun settings(value: Settings?): String {

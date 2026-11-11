@@ -21,6 +21,11 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
             !io.openhoyi.protocol.CustomPressureStartPolicy.permits(parameters))return false
         return listOf(false,true).any { resolve(selectedId,it)?.parameters == parameters }
     }
+    fun permitsCustomCurveStart(selectedId: String?, parameters: io.openhoyi.protocol.StartParameters): Boolean {
+        if (selectedId == null || !selectedId.startsWith("draft-") || parameters.slot != 7 ||
+            !io.openhoyi.protocol.CustomCurveStartPolicy.permits(parameters)) return false
+        return listOf(false, true).any { resolve(selectedId, it)?.parameters == parameters }
+    }
     val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
     private val verifiedItems: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         factory.map { curve ->
@@ -35,14 +40,14 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
     fun find(id: String): CurveLibraryItem? = items.firstOrNull { it.id == id }
     fun canStart(item: CurveLibraryItem): Boolean {
         if(item.customDocument!=null)return enableCustomPressureExecution && find(item.id)==item &&
-            CustomPressureCurveAdapter.profile(item.customDocument,false)!=null
+            CustomCurveAdapter.profile(item.customDocument,false)!=null
         return !item.id.startsWith("draft-") &&
             (item.factoryCurve != null && proof != null)
     }
     fun resolve(id: String, scaleConnected: Boolean, slot: Int = 7): CurveProfile? {
         val item = find(id) ?: return null
         if(item.customDocument!=null)return if(enableCustomPressureExecution && slot==7)
-            CustomPressureCurveAdapter.profile(item.customDocument,scaleConnected,slot) else null
+            CustomCurveAdapter.profile(item.customDocument,scaleConnected,slot) else null
         if (item.id.startsWith("draft-")) return null
         val curve = item.factoryCurve ?: return null
         if (slot !in 1..5 && slot != 7) return null
