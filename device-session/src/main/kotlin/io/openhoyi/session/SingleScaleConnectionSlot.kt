@@ -5,6 +5,13 @@ import io.openhoyi.protocol.ScaleCapabilities
 /** Explicit address + protocol selection; never infer a protocol from a device name. */
 data class ScaleSelection(val address:String,val protocolId:String)
 object ScaleSelectionPolicy {
+    /** Saved ART opt-ins and old read-only selections retain their adapter on legacy discovery.
+     * Discovery never upgrades a legacy selection or crosses device addresses/protocol families. */
+    fun matchesDiscovered(selection:ScaleSelection,address:String,discoveredId:String?):Boolean =
+        selection.address.equals(address,ignoreCase=true) &&
+            (selection.protocolId==discoveredId ||
+                (selection.protocolId in setOf(FelicitaArtScaleProtocolAdapter.id,FelicitaReadOnlyScaleProtocolAdapter.id) &&
+                    discoveredId==FelicitaScaleProtocolAdapter.id))
     fun adapter(protocolId:String):ScaleProtocolAdapter? =
         (ScaleProtocolRegistry.connectable + ScaleProtocolRegistry.readOnlyCandidates).singleOrNull { it.id==protocolId }
     fun remembered(address:String?,protocolId:String?):ScaleSelection? {

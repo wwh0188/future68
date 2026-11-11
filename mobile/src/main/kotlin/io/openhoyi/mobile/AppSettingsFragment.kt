@@ -55,8 +55,10 @@ class AppSettingsFragment : Fragment() {
         override fun run() { serviceObserver(service); refreshHandler.postDelayed(this, 500) }
     }
     private var scaleCapabilities: TextView? = null
+    private var felicitaControl: FelicitaWeightControlCard? = null
     private val serviceObserver: (MobileService?) -> Unit = {
         service = it
+        felicitaControl?.render()
         deviceControls?.render(it)
         fun badge(state:String?):String?=when(state) {
             "UNKNOWN"->getString(R.string.task_shell_machine_unknown)
@@ -142,6 +144,7 @@ class AppSettingsFragment : Fragment() {
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
         })
         scaleCapabilities?.let { scale.addView(it) }
+        felicitaControl = FelicitaWeightControlCard(activity, scale, visual, { service })
         style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
         listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
@@ -226,6 +229,7 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onPause() {
         refreshHandler.removeCallbacks(refreshCapabilities)
+        felicitaControl?.close()
         deviceControls?.close()
         machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
@@ -242,6 +246,7 @@ class AppSettingsFragment : Fragment() {
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }
         document=null; deviceControls?.close(); deviceControls=null
+        felicitaControl?.close(); felicitaControl=null
         machineControls = null
         feedbackCard = null; languageCard = null; exportStatus = null
         super.onDestroyView()

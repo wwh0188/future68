@@ -167,7 +167,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                         diagnostic("scale.auto_reconnect.attempt=${++automaticScaleAttempts}")
                         scanner.start(AutoConnectTiming.SCAN_MS,ScanCoordinator.Owner.AUTOMATIC,selection,
                             onDevice={ found ->
-                                if(found.address.equals(selection.address,true) && found.scaleProtocolId==selection.protocolId &&
+                                if(ScaleSelectionPolicy.matchesDiscovered(selection,found.address,found.scaleProtocolId) &&
                                     !closed && foreground && request==scaleRequest && remembered==selection &&
                                     automaticAllowed(DeviceRole.BOOKOO) && DeviceConnectionGate.mayChangeScale(extraction.state) &&
                                     scaleSlot.current?.owner?.device?.session?.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {

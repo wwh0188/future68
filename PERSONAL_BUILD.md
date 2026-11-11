@@ -2,7 +2,20 @@
 
 基于 `dev-77`：`69e31001d689f659a00055b121f86b574955f353`。
 
-应用名：OpenHOYI 77 扩展；包名：`io.openhoyi.mobile.personal`；版本：`0.1.77-personal.1`（78）。这是本次修改的独立个人测试包，与原版并存，原版数据不会自动转入。连接机器前先断开其它控制 App；同一台机器只能由一个 App 连接。
+应用名：OpenHOYI 77 扩展；包名：`io.openhoyi.mobile.personal`；当前版本：`0.1.77-personal.2`（79）。已安装个人版 v1（78）可直接覆盖升级，沿用原测试签名，不要卸载或清数据。与作者原版并存，原版数据不会自动转入。连接机器前先断开其它控制 App；同一台机器只能由一个 App 连接。
+
+## v2：Felicita ART 按重量停止
+
+v1 的「此秤尚未验证目标重量联动」提示是协议能力限制。v2 根据用户 ART 的放物、取下、去皮诊断，增加这台秤的显式测试适配；普通 Felicita 连接继续保留原能力。
+
+1. 连接 HOYI 和你的 Felicita ART，确认重量随放物、取下而更新，保持机器空闲。
+2. 打开「设置 → 电子秤」或电子秤页面的设置，点击「启用 ART 按重停止（测试）」并确认。App 会重新连接当前秤；等待重量恢复更新。成功就绪后记住这个选择，之后可自动重连。
+3. 在曲线中设置大于 0 的目标重量，例如 36 g，再按正常流程放好接液杯。**目标重量为 0 表示不按秤重停止。** 开始目标重量萃取时，App 先发一次去皮，收到写入完成后的新近零读数才启动机器；去皮未确认则不启动，不会自动重试未知结果。
+4. 沿用原版至少 7 秒后才判断按重停止的规则；断秤或重量超过 1.5 秒未更新，会请求保护停止。首次请在机器旁用水核对定重停水，保留随时手动停机的条件。
+
+日志已验证克读数解析和三次手动去皮归零，软件回放验证了启动、按重停止请求及保护路径；**真实机器收到停止请求后的停水效果尚待用户验收**，不保证最终液重无余流误差。不添加无目标重量时的延迟自动去皮，也不猜测秤的计时器或电量。若需要恢复普通受限连接，重新扫描并选择普通 Felicita；保留原有未确认结果，不通过卸载或清数据恢复。
+
+诊断结论与测试范围见 [Felicita ART 证据说明](docs/evidence/felicita-art-weight-control.md)。
 
 ## 新功能
 
@@ -24,9 +37,9 @@
 安装 JDK 17、Android SDK 35 和 build-tools 35.0.0，设置 `ANDROID_HOME`，运行：
 
 ```sh
-./gradlew :mobile:assemblePersonal -PhoyiVersionCode=78 -PhoyiVersionName=0.1.77-personal.1
+./gradlew :mobile:assemblePersonal -PhoyiVersionCode=79 -PhoyiVersionName=0.1.77-personal.2
 ```
 
-产物：`mobile/build/outputs/apk/personal/mobile-personal.apk`。独立个人包使用测试签名；它不能作为原作者签名主包的覆盖升级包。
+产物：`mobile/build/outputs/apk/personal/mobile-personal.apk`。独立个人包使用测试签名；它不能作为原作者签名主包的覆盖升级包。自行构建须另外保管并配置自己的签名；本仓库不包含已交付个人包的私钥，普通本机构建不能保证与它覆盖兼容。
 
 源码继续遵循仓库 [GPL v2 许可证](LICENSE)。官方 APK、解包代码、签名私钥和本机构建缓存不包含在源码交付中。

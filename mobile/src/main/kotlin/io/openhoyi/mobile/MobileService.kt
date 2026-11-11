@@ -966,25 +966,42 @@ class MobileService : Service() {
         if(!automatic)autoConnect.pause(DeviceRole.COFFEE,false)
         return true
     }
+    internal val scaleProtocolId: String? get() = hub?.scaleProtocolId
+    internal fun felicitaWeightControlContext(): FelicitaWeightControlContext? =
+        FelicitaWeightControlPolicy.context(hub?.scaleAddress, hub?.scaleProtocolId, scaleConnectionEpoch,
+            snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
+            manualShotActive, brewPreparation.active, tareState, BuildConfig.MOCK_MODE || mock != null)
+    internal fun enableFelicitaWeightControl(expected: FelicitaWeightControlContext): String {
+        if (!FelicitaWeightControlPolicy.stillCurrent(expected, felicitaWeightControlContext()))
+            return getString(R.string.felicita_control_state_changed)
+        return if (connectScaleWithResult(expected.address, io.openhoyi.session.FelicitaArtScaleProtocolAdapter.id)) {
+            event(ResourceMessage(R.string.felicita_control_reconnecting), "scale.felicita_art_selected")
+            getString(R.string.felicita_control_reconnecting)
+        } else getString(R.string.felicita_control_connect_failed)
+    }
     fun connectScale(address: String, protocolId: String = io.openhoyi.session.BookooScaleProtocolAdapter.id) {
+        connectScaleWithResult(address, protocolId)
+    }
+    private fun connectScaleWithResult(address: String, protocolId: String): Boolean {
         if (io.openhoyi.session.ScaleSelectionPolicy.adapter(protocolId) == null) {
-            event(ResourceMessage(R.string.scale_protocol_unsupported)); return
+            event(ResourceMessage(R.string.scale_protocol_unsupported)); return false
         }
-        if (mock != null) { event(ResourceMessage(R.string.service_scale_mock), "mock.connect"); return }
-        if (manualShotActive) { event(ResourceMessage(R.string.service_scale_manual_block)); return }
+        if (mock != null) { event(ResourceMessage(R.string.service_scale_mock), "mock.connect"); return false }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_scale_manual_block)); return false }
         manualDeviceUse()
-        if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return }
-        val current = hub ?: return
+        if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return false }
+        val current = hub ?: return false
         try {
-            if (!current.connectScale(address, protocolId)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
+            if (!current.connectScale(address, protocolId)) { event(ResourceMessage(R.string.service_scale_already_connected)); return false }
         } catch (_: RuntimeException) {
-            event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return
+            event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return false
         }
         autoConnect.pause(DeviceRole.BOOKOO,false)
         snapshot = snapshot.copy(weight = null, weightAt = null,
             scaleObservation = null, scaleCapabilities = null)
         scaleTrend.clear() // A selected scale starts a new display history, not a mixed-device line.
         event(ResourceMessage(R.string.service_scale_connect))
+        return true
     }
     fun disconnect(role: DeviceRole) {
         if (mock != null) { event(ResourceMessage(R.string.service_disconnect_mock), "mock.disconnect"); return }

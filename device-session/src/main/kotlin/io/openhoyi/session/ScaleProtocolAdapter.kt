@@ -68,7 +68,7 @@ class OfflineScaleProtocolAdapter(val family:LegacyScaleFamily):ScaleProtocolAda
 }
 object ScaleProtocolRegistry {
     val connectable:List<ScaleProtocolAdapter> = listOf(BookooScaleProtocolAdapter,BookooUltraLegacyScaleProtocolAdapter,
-        FelicitaScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter,
+        FelicitaScaleProtocolAdapter,FelicitaArtScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter,
         AcaiaLegacyScaleProtocolAdapter,AcaiaPearlScaleProtocolAdapter,DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter)
     val offlineCandidates:List<ScaleProtocolAdapter> = LegacyScaleFamily.entries.map(::OfflineScaleProtocolAdapter)
     val readOnlyCandidates:List<ScaleProtocolAdapter> = listOf(FelicitaReadOnlyScaleProtocolAdapter,TimemoreLegacyReadOnlyScaleProtocolAdapter)

@@ -55,8 +55,9 @@ class ScanCoordinator(context:Context):AutoCloseable {
                 try {
                     val address=result.device.address
                     val name=result.scanRecord?.deviceName.orEmpty()
-                    val known=remembered?.takeIf { it.address.equals(address,ignoreCase=true) }
-                    val protocolId=known?.protocolId ?: ScaleAdvertisementClassifier.protocolId(name)
+                    val discoveredId=ScaleAdvertisementClassifier.protocolId(name)
+                    val known=remembered?.takeIf { io.openhoyi.session.ScaleSelectionPolicy.matchesDiscovered(it,address,discoveredId) }
+                    val protocolId=known?.protocolId ?: discoveredId
                     val role=when{known!=null->DeviceRole.BOOKOO;name.contains("HOYI",true)->DeviceRole.COFFEE;protocolId!=null->DeviceRole.BOOKOO;else->return@post }
                     onDevice(DiscoveredDevice(address,name,result.rssi,role,if(role==DeviceRole.BOOKOO)protocolId else null))
                 }catch(_:SecurityException){finish("scan permission revoked")}
