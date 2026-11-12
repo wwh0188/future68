@@ -1,0 +1,146 @@
+{
+  "applicationName": "OpenHOYI 77 扩展",
+  "packageName": "io.openhoyi.mobile.personal",
+  "versionCode": 87,
+  "versionName": "0.2.0-personal.6",
+  "signerCertificateSha256": "4ad87267785cadb93d961dba472586bfd53dde2e8dd2ffa7d939b4a6af7d060f",
+  "apkSha256": "82f186fddd01f09c6de4dca25478b0e3dbedbc5299590fa979a93bbeb3307844",
+  "apkBytes": 18374420,
+  "sourceBase": "69e31001d689f659a00055b121f86b574955f353",
+  "sourceCommit": "5b1751811a8f69cc25418a7402f50a4b732933c7",
+  "sourceCommitVerified": false,
+  "referenceTag": "dev-86",
+  "referenceSourceCommit": "00330680d68d0d9f65315d9f6371a63c3df7b411",
+  "referenceApkSha256": "739296edc5e940cfa7fa24e0d24a5566c6d2df4a2d97321d9e7abd119719f0d3",
+  "referenceApkBytes": 17188791,
+  "referenceMetadataFromReleaseApi": true,
+  "referenceApkDownloaded": false,
+  "referenceSourceCommitVerified": false,
+  "deliveryChannel": "private GitHub repository only",
+  "personalTestBuild": true,
+  "debuggable": true,
+  "signatureVerified": true,
+  "mockMode": false,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "changes": [
+    "Theme-aware home, boiler dial, preset cards and live extraction surfaces while preserving light colors",
+    "Theme-aware live endpoint labels, separators and start button colors without curve interaction changes",
+    "Acaia complete known-record-chain decoding publishes the last weight only after whole-frame validation",
+    "Reject unknown boundaries, truncated records, invalid precision and unsupported nonzero high weight bytes",
+    "Preserve unit whitelist, Lunar/AP control permissions and Felicita ART control behavior",
+    "Preserve V5 boiler/preheat/direct-start behavior and personal curve schema4 descriptions/compensation/inactive stages"
+  ],
+  "checks": [
+    "protocol-core:check",
+    "device-session:check",
+    "bluetooth-android:testDebugUnitTest",
+    "mobile:testDebugUnitTest",
+    "mobile:assemblePersonal",
+    "mobile:lintDebug",
+    "app:compileDebugKotlin",
+    "mobile:compileMockAndroidTestKotlin",
+    "exact default/English APK resource verification",
+    "compiled APK MOCK_MODE=false",
+    "same certificate and increasing version compared with personal V1/V2/V3/V4/V5",
+    "localization catalog integrity and generated-resource drift checks",
+    "independent Astra design and final read-only review"
+  ],
+  "gradleResult": "BUILD SUCCESSFUL",
+  "junit": {
+    "device-session": {
+      "tests": 773,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 551,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "bluetooth-android": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "Warning": 457
+  },
+  "localization": {
+    "matchedStrings": 3040,
+    "personalBrandOverridesVerified": true
+  },
+  "upgrade": {
+    "previousVersionCodes": [
+      78,
+      79,
+      80,
+      83,
+      85
+    ],
+    "previousApkSha256": [
+      "2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f",
+      "3abc3fc20052f057a769741ac5532254951d5719c5e952c0a6d917653d791a85",
+      "5d707b852938de14a626ff4de152b0ce9a27a9058e4ed5ed0b64f21764a3a27c",
+      "d5ceece547196d2737b697c91c24bb90d9df3c692e35fcf392482119f0bfb2e5",
+      "90b65e61462f8d2c5eba70a03f5c9666e3a0ea843d0b1606b61e0e0f98a8398f"
+    ],
+    "identityAndVersionCompatible": true,
+    "installationVerified": false,
+    "dataPreservationVerified": false
+  },
+  "curveCompatibility": {
+    "readsPersonalSchemas": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "legacyChecksumAndDefaultFingerprintPreserved": true,
+    "upstreamConfigurationSchema3Imported": false
+  },
+  "preinfusion": {
+    "minimumFlowMlPerSecond": 1,
+    "timedFirstStageVolumeMl": 0,
+    "requiresPositiveFirstStageDuration": true,
+    "zeroBarGuaranteed": false,
+    "independentPressureCeilingAvailable": false
+  },
+  "instrumentationCompiled": true,
+  "instrumentationExecuted": false,
+  "hardwareVerified": false,
+  "screenVerified": false,
+  "installed": false,
+  "upstreamPublished": false,
+  "referenceOrVendorApkIncluded": false,
+  "rawUserDiagnosticsIncluded": false,
+  "protocolCoreVerification": {
+    "checksPassed": 39848,
+    "capturedNotificationsReplayed": 32856
+  },
+  "referenceReleases": [
+    {
+      "tag": "dev-85",
+      "sourceCommit": "b8cf9869051e23892990acf631227b5ef9376ff2",
+      "apkSha256": "11f7e816f0dea2fc4f876274fdf2e7985f70f7aaeb3778589af96b049359d3f9",
+      "apkBytes": 17188411,
+      "apkDownloaded": false
+    },
+    {
+      "tag": "dev-86",
+      "sourceCommit": "00330680d68d0d9f65315d9f6371a63c3df7b411",
+      "apkSha256": "739296edc5e940cfa7fa24e0d24a5566c6d2df4a2d97321d9e7abd119719f0d3",
+      "apkBytes": 17188791,
+      "apkDownloaded": false
+    }
+  ],
+  "scalePermissions": {
+    "lunarApAutomaticControlExpanded": false,
+    "felicitaArtBehaviorPreserved": true
+  },
+  "syntheticRegressionFixtures": true
+}
