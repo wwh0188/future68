@@ -1,10 +1,18 @@
 # OpenHOYI 77 扩展测试包
 
-保留 dev-77 个人功能，并采纳 dev-79／dev-82／dev-84 的相关修复；本次参考 dev-84 源码 `7fbfcbea69da126b2361c48fcf88e1d6acf80b07`（#58／#59）。
+保留 dev-77 个人功能，并采纳 dev-79／dev-82／dev-84／dev-85／dev-86 的相关修复；本次参考 dev-86 源码 `00330680d68d0d9f65315d9f6371a63c3df7b411`，包含 dev85／#60 与 dev86／#61。
 
-应用名：OpenHOYI 77 扩展；包名：`io.openhoyi.mobile.personal`；当前版本：`0.2.0-personal.5`（85）。个人版 V1～V4 可直接覆盖升级，沿用原测试签名，不要卸载或清数据。与作者原版并存，原版数据不会自动转入。连接机器前先断开其它控制 App；同一台机器只能由一个 App 连接。
+应用名：OpenHOYI 77 扩展；包名：`io.openhoyi.mobile.personal`；当前版本：`0.2.0-personal.6`（87）。个人版 V1～V5 可直接覆盖升级，沿用原测试签名，不要卸载或清数据。与作者原版并存，原版数据不会自动转入。连接机器前先断开其它控制 App；同一台机器只能由一个 App 连接。
 
-## V5 更新
+## V6 更新
+
+- 对齐 dev85：修复首页和实时萃取页暗色模式下的白色背景，温度仪表盘、快捷曲线卡片、操作区及末端读数底色随主题切换；浅色模式和曲线交互保持原样。
+- 对齐 dev86：支持 Acaia 已知重量/计时组合通知，修复部分 Lunar 因有效组合通知被拒而停留在同步的问题。整条数据完整有效后才更新重量；不支持的重量编码、未知边界和截断数据继续拒绝，避免误读。
+- Lunar/AP 的去皮与自动控制权限保持原边界；Felicita ART 的连接和定量联动逻辑不变。
+
+安装包、源码和更新记录仅通过 [GitHub 仓库](https://github.com/wwh0188/future68) 交付。来源、独立复核和未验证项见 [V6 记录](docs/evidence/personal-dev86-audit.md)。
+
+## 保留的 V5 修复
 
 - 锅炉开关写入后等待真实状态回报；未回报时有次数和时间限制的同步/重连对账，避免一直卡在等待。状态不确定时不自动重发锅炉开关命令，界面明确区分刷新、重连和需核对状态。
 - 修复首次连接中认证完成与设置回报顺序不同造成的偶发等待；仍需认证与有效设置完成后才能控制。
@@ -12,7 +20,7 @@
 - 开始按钮附近显示按秤重或按曲线水量停止的说明，萃取期间继续显示目标重量进度。预热中和预热就绪正常显示，不再笼统标为设备不可用。
 - 按上游静态协议证据显式支持固件 1.1.5；新 FLOW 组合须机器确认 1.1.4 或 1.1.5。其它未核对固件继续只读。本次不更新机器固件。
 
-安装包、源码和更新记录仅通过 [GitHub 仓库](https://github.com/wwh0188/future68) 交付。来源、独立复核和未验证项见 [V5 记录](docs/evidence/personal-dev84-audit.md)。
+此前修复的来源、独立复核和未验证项见 [V5 记录](docs/evidence/personal-dev84-audit.md)。
 
 ## 保留的 V4 修复
 
@@ -64,7 +72,7 @@
 安装 JDK 17、Android SDK 35 和 build-tools 35.0.0，设置 `ANDROID_HOME`，运行：
 
 ```sh
-./gradlew :mobile:assemblePersonal -PhoyiVersionCode=85 -PhoyiVersionName=0.2.0-personal.5
+./gradlew :mobile:assemblePersonal -PhoyiVersionCode=87 -PhoyiVersionName=0.2.0-personal.6
 ```
 
 产物：`mobile/build/outputs/apk/personal/mobile-personal.apk`。独立个人包使用测试签名；它不能作为原作者签名主包的覆盖升级包。自行构建须另外保管并配置自己的签名；本仓库不包含已交付个人包的私钥，普通本机构建不能保证与它覆盖兼容。

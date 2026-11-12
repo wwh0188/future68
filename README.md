@@ -1,15 +1,15 @@
 # OpenHOYI 77 扩展 · future68 自用仓库
 
-这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并采纳 dev-79／dev-82／dev-84 的相关修复，以及原项目源码、历史和 GPL v2 许可证。
+这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并采纳 dev-79／dev-82／dev-84／dev-85／dev-86 的相关修复，以及原项目源码、历史和 GPL v2 许可证。
 
 - 补齐拨杆的四种官方模式组合。
 - 支持曲线整体变压／变流、逻辑与变流首段设置。
 - 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
 - 保留 77 版的独立总量上限。
 
-**[从 GitHub 下载 V5 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v5.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v5.json)
+**[从 GitHub 下载 V6 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v6.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v6.json)
 
-应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V5（85）采纳锅炉状态回读、首次连接竞态和预热显示修复，明确点击后直接开始萃取或休眠，低温仍提示预热，并显式支持固件 1.1.5。保留 Felicita ART、拨杆、说明编辑，以及 V4 的通用秤记录、补偿和隐藏段保真。可覆盖升级 V1～V4，保持原包名和测试签名；详见 [V5 审查记录](docs/evidence/personal-dev84-audit.md)。本次未进行实际安装、屏幕或机器验收；首段低流量预浸仍不保证 0 bar。
+应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V6（87）对齐 dev85 的首页/实时萃取暗色配色，以及 dev86 的 Acaia Lunar 已知重量/计时组合数据解析；不扩大秤控制权限。保留 Felicita ART、拨杆、说明编辑、补偿/隐藏段，以及 V5 的锅炉回读、直接启动、预热和固件 1.1.5 支持。可覆盖升级 V1～V5，保持原包名和测试签名；详见 [V6 审查记录](docs/evidence/personal-dev86-audit.md)。本次未进行实际安装、屏幕或机器验收；首段低流量预浸仍不保证 0 bar。
 
 本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
 
@@ -61,7 +61,7 @@ OpenHOYI 是面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin �
 | **TIMEMORE Basic3 Link（TES016）** | 已按公开协议接入，待实机验证 | 重量、设备流速、电量、手动去皮 |
 | **旧款 TIMEMORE**（广播名 `timemore scale`） | 实验性只读，待实机验证 | 指定双通道协议的重量读数 |
 | **Acaia A**（`PROCHBT` / `ACAIA`） | 已接入，待实机验证 | 确认克单位后的重量、手动去皮 |
-| **Acaia AP**（`LUNAR` / `PEARL` / `PYXIS`） | 已接入，待实机验证 | 确认克单位后的重量；暂不提供去皮 |
+| **Acaia AP**（`LUNAR` / `PEARL` / `PYXIS`） | 已接入，待实机验证 | 确认克单位后的重量，支持已知重量/计时组合通知；暂不提供去皮 |
 | **DiFluid**（`Microbalance` / `difluid` / `Mb Ti`） | 已接入，待实机验证 | 自带克单位的重量、手动去皮；协议最低固件 Microbalance **V300** / Ti **V010** |
 
 适配范围以表中型号与协议为准，不代表品牌全系列兼容。
