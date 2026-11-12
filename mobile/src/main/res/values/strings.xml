@@ -546,7 +546,7 @@
     <string name="extraction_auto_stop_advice">"萃取满 7 秒且达到目标重量后自动停止；请守在机器旁"</string>
     <string name="extraction_pending_stop_advice">"停止命令处理中；请确认机器停水"</string>
     <string name="extraction_weight_control_advice">"使用电子秤控制停止"</string>
-    <string name="extraction_no_weight_advice">"这条曲线不按秤重停机，由咖啡机按曲线结束"</string>
+    <string name="extraction_no_weight_advice">"本次不按秤重停机，按曲线水量结束"</string>
     <string name="extraction_cancel_prepare_again">"再次发送取消预热"</string>
     <string name="extraction_state_starting">"启动中"</string>
     <string name="extraction_state_running">"萃取中"</string>

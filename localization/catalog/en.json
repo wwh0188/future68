@@ -482,7 +482,7 @@
   "extraction_auto_stop_advice": "Stops automatically once extraction reaches 7 seconds and target weight; stay by the machine",
   "extraction_pending_stop_advice": "Stop command in progress; confirm water flow has stopped",
   "extraction_weight_control_advice": "Scale controls stopping",
-  "extraction_no_weight_advice": "This curve does not stop by scale weight; the coffee machine ends according to the curve",
+  "extraction_no_weight_advice": "This shot stops by curve water volume, not scale weight",
   "extraction_cancel_prepare_again": "Resend cancel preheat",
   "extraction_state_starting": "Starting",
   "extraction_state_running": "Extracting",

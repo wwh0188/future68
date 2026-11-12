@@ -1,0 +1,12 @@
+<resources>
+    <string name="home_boiler_preheat_occupied">Preheat busy</string>
+    <string name="home_boiler_reconnecting">Reconnecting</string>
+    <string name="home_boiler_refresh">Refresh state</string>
+    <string name="home_boiler_retry_off">Retry off</string>
+    <string name="home_boiler_retry_on">Retry on</string>
+    <string name="home_boiler_syncing">Syncing</string>
+    <string name="home_boiler_turning_off">Turning off</string>
+    <string name="home_boiler_turning_on">Turning on</string>
+    <string name="task_shell_machine_preheat_ready">Preheat ready</string>
+    <string name="task_shell_machine_preheating">Preheating</string>
+</resources>

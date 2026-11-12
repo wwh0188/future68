@@ -1,3 +1,3 @@
 <resources>
-    <string name="personal_flow_firmware114_required">这组自定义流量参数需要咖啡机明确回报固件 1.1.4，请连接并等待设备确认</string>
+    <string name="personal_flow_firmware114_required">这组自定义流量参数需要咖啡机明确回报固件 1.1.4 或 1.1.5，请连接并等待设备确认</string>
 </resources>

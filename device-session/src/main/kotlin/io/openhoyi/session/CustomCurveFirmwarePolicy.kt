@@ -2,12 +2,16 @@ package io.openhoyi.session
 
 import io.openhoyi.protocol.StartParameters
 
-/** Protocol evidence only; firmware membership does not imply hardware acceptance. */
+/** Explicit protocol profiles only; static parity is not hardware acceptance. */
 object CustomCurveFirmwarePolicy {
-    fun requires114(parameters: StartParameters): Boolean =
+    fun requiresReviewedFlowProfile(parameters: StartParameters): Boolean =
         parameters.variableFlowLogic && (!parameters.pressureLogic || parameters.firstSegmentFlowMode)
 
     fun permits(parameters: StartParameters, firmwareInteger: Int): Boolean =
         CoffeeFirmwareProfiles.permitsControl(firmwareInteger) &&
-            (!requires114(parameters) || firmwareInteger == CoffeeFirmwareProfiles.FW_1_1_4)
+            (!requiresReviewedFlowProfile(parameters) || firmwareInteger in setOf(
+                CoffeeFirmwareProfiles.FW_1_1_4, CoffeeFirmwareProfiles.FW_1_1_5))
+
+    fun permits(parameters: StartParameters, firmware: CoffeeFirmware?): Boolean =
+        firmware != null && permits(parameters, (firmware.major shl 8) or (firmware.minor shl 4) or firmware.patch)
 }

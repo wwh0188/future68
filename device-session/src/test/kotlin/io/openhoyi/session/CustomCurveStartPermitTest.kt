@@ -23,6 +23,22 @@ class CustomCurveStartPermitTest {
         f.idle(f.now)
     }
 
+    @Test fun reviewedFirmwareChangeRevokesQueuedContextEvenWhenBothProfilesAreAllowed() {
+        for ((from,to) in listOf(4 to 5,5 to 4)) {
+            val f=fixture(customCurveStartPermit={true});firmware(f,from)
+            val context=requireNotNull(f.session.captureStartContext(p))
+            val queue=DeviceSession::class.java.getDeclaredField("queue").apply {isAccessible=true}.get(f.session) as GattQueue
+            queue.enqueue(GattOperation.Discover,5000) {}
+            val barrier=f.calls.last();val count=f.calls.size
+            var result:OperationResult?=null
+            f.session.startExtraction(p,context) {result=it}
+            firmware(f,to)
+            assertNotNull(f.session.captureStartContext(p))
+            f.session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+            assertTrue(result is OperationResult.Failed);assertEquals(count,f.calls.size)
+        }
+    }
+
     @Test fun newFlowRequires114AndQueuedFirmwareChangeRevokesStart() {
         val f=fixture(customCurveStartPermit={true})
         firmware(f,3)
@@ -109,7 +125,7 @@ class CustomCurveStartPermitTest {
         f.now = 1501
         assertNull(f.session.captureStartContext(p))
         f.session.onNotification(f.session.generation, KnownGatt.coffeeNotify,
-            f.hex("830115FD5C007D0F3500190068"))
+            f.hex("830116FD5C007D0F350019006B"))
         f.idle(f.now)
         assertNull(f.session.captureStartContext(p))
     }

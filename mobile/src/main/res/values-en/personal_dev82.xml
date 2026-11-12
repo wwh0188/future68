@@ -1,3 +1,3 @@
 <resources>
-    <string name="personal_flow_firmware114_required">This custom flow combination requires a confirmed machine firmware version 1.1.4. Connect and wait for device identification.</string>
+    <string name="personal_flow_firmware114_required">This custom flow combination requires a confirmed machine firmware version 1.1.4 or 1.1.5. Connect and wait for device identification.</string>
 </resources>

@@ -169,7 +169,7 @@
     <string name="extraction_mock_start_title">"Confirm simulated extraction"</string>
     <string name="extraction_mock_subtitle">"Simulation mode · No Bluetooth commands"</string>
     <string name="extraction_mode_missing">"Operating mode not read back yet"</string>
-    <string name="extraction_no_weight_advice">"This curve does not stop by scale weight; the coffee machine ends according to the curve"</string>
+    <string name="extraction_no_weight_advice">"This shot stops by curve water volume, not scale weight"</string>
     <string name="extraction_no_weight_target">"Not used (machine ends by water volume)"</string>
     <string name="extraction_notification_warning">"System notifications are not permitted; background connection-loss reminders may be hidden. Allow notifications in system settings."</string>
     <string name="extraction_notification_warning_suffix">"\nSystem notifications are not permitted; background connection-loss reminders may not appear."</string>
