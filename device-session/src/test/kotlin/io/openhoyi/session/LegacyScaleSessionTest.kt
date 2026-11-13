@@ -17,11 +17,11 @@ class LegacyScaleSessionTest {
         }
         override fun close(generation:Long) {closed+=generation}
     }
-    private class Fixture(val adapter:ScaleProtocolAdapter,onState:(DeviceState)->Unit={}) {
+    private class Fixture(val adapter:ScaleProtocolAdapter,onSample:(ScaleObservation)->Unit={},onState:(DeviceState)->Unit={}) {
         var now=100L
         val driver=Driver()
         val seen=mutableListOf<ScaleObservation>()
-        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},stateChanged=onState,scaleAdapter=adapter,scaleObservation={seen+=it})
+        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},stateChanged=onState,scaleAdapter=adapter,scaleObservation={seen+=it;onSample(it)})
         fun complete(result:OperationResult=OperationResult.Success()) {
             val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)
         }
@@ -50,6 +50,19 @@ class LegacyScaleSessionTest {
         val sum=IntArray(2)
         payload.forEachIndexed { i,b->sum[i%2]=(sum[i%2]+(b.toInt() and 255)) and 255 }
         return hex("efdd0c")+payload+byteArrayOf(sum[0].toByte(),sum[1].toByte())
+    }
+    @Test fun acaiaRestartKeepsUnitsButRealCorruptionRevokesThem() {
+        val f=Fixture(AcaiaLegacyScaleProtocolAdapter);f.boot();f.notify(unit+weight)
+        val zero=hex("EFDD0C08050000000002000A05")
+        f.notify(zero.copyOf(6));f.notify(zero)
+        assertEquals(2,f.seen.size)
+        assertEquals(0,f.seen.last().hundredthsGram)
+        assertEquals(DeviceState.READY,f.session.state)
+        f.notify(zero.copyOf().apply {this[lastIndex]=0})
+        f.notify(zero)
+        assertEquals(2,f.seen.size)
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        f.notify(unit+zero);assertEquals(3,f.seen.size)
     }
     @Test fun acaiaRecordChainsPreserveUnitFreshnessAndControlBoundaries() {
         val f=Fixture(AcaiaPearlScaleProtocolAdapter);f.boot()
@@ -244,6 +257,39 @@ class LegacyScaleSessionTest {
         val f=Fixture(DiFluidTiScaleProtocolAdapter);f.session.connect("fixture");f.complete()
         f.complete(OperationResult.Success(Fixture(DiFluidScaleProtocolAdapter).characteristics()))
         assertEquals(DeviceState.FAILED,f.session.state);assertTrue(f.writes().isEmpty())
+    }
+    /** Constructed from the documented 13-byte payload; no physical-scale trace is used. */
+    @Test fun difluidAbandonedPrefixKeepsTareEvidenceAndStillRejectsNonGramFrames() {
+        fun frame(function:Int,command:Int,payload:ByteArray):ByteArray {
+            val body=byteArrayOf(0xDF.toByte(),0xDF.toByte(),function.toByte(),command.toByte(),payload.size.toByte())+payload
+            return body+byteArrayOf((body.sumOf {it.toInt() and 255} and 255).toByte())
+        }
+        fun weight(tenths:Int,unit:Int=0)=frame(3,0,ByteArray(13).apply {
+            for(index in 0..3)this[index]=(tenths ushr (24-index*8)).toByte()
+            this[12]=unit.toByte()
+        })
+        for(adapter in listOf(DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter)) {
+            lateinit var f:Fixture
+            var sequence=0L
+            val tare=StandaloneTare {f.now}
+            f=Fixture(adapter,onSample={tare.sample(++sequence,it.hundredthsGram)},
+                onState={if(it!=DeviceState.READY)tare.disconnected()})
+            f.boot();f.notify(weight(42))
+            val control=ScaleSessionControl(f.session,tare,{sequence})
+            control.tare({true}) {};f.complete()
+            assertEquals(StandaloneTare.State.WAITING_ZERO,tare.state)
+            f.now++
+            f.notify(frame(3,2,byteArrayOf(2))+weight(37).copyOf(6))
+            f.notify(weight(0))
+            assertEquals(DeviceState.READY,f.session.state)
+            assertEquals(StandaloneTare.State.CONFIRMED,tare.state)
+            assertFalse(f.seen.last().eligibleForTargetWeight)
+            assertFalse(control.capabilities.supportsTargetWeight)
+            control.tare({true}) {};f.complete()
+            f.now++;f.notify(weight(37).copyOf(6));f.notify(weight(0,1))
+            assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+            assertEquals(StandaloneTare.State.UNKNOWN,tare.state)
+        }
     }
     @Test fun ultraRetainsReadingsButNotBookooVerifiedControlEvidenceOrLegacyCallback() {
         val sample=ByteArray(20).apply {

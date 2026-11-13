@@ -67,10 +67,11 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         },
         coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
-        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit) }
+        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
+        synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)}) }
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
-    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
+    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})
     // Retain the current-device reflection contract used by lifecycle diagnostics.
     private var scale:AndroidDevice=scaleSlot.replace(ScaleSelection("",BookooScaleProtocolAdapter.id)) {
         createScaleOwner(it,BookooScaleProtocolAdapter)
@@ -168,6 +169,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     }
                     if(reconnect.shouldAttempt(now,false))try {
                         val request=scaleRequest
+                        reconnect.scanStarted()
                         diagnostic("scale.auto_reconnect.attempt=${++automaticScaleAttempts}")
                         scanner.start(AutoConnectTiming.SCAN_MS,ScanCoordinator.Owner.AUTOMATIC,selection,
                             onDevice={ found ->
@@ -175,10 +177,12 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                                     !closed && foreground && request==scaleRequest && remembered==selection &&
                                     automaticAllowed(DeviceRole.BOOKOO) && DeviceConnectionGate.mayChangeScale(extraction.state) &&
                                     scaleSlot.current?.owner?.device?.session?.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {
+                                    diagnostic("scale.auto_reconnect.matched=remembered_target")
+                                    reconnect.discovered(SystemClock.elapsedRealtime())
                                     scanner.cancel(ScanCoordinator.Owner.AUTOMATIC)
                                     connectScale(selection.address,selection.protocolId,explicit=false)
                                 }
-                            },onFinished={reconnect.attemptFinished(SystemClock.elapsedRealtime())})
+                            },onFinished={reconnect.scanFinished(SystemClock.elapsedRealtime())})
                     }catch(error:RuntimeException) {
                         reconnect.attemptFinished(SystemClock.elapsedRealtime())
                         diagnostic("remembered scale reconnect failed: ${error.javaClass.simpleName}")
@@ -284,6 +288,22 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             done(OperationResult.Failed("unsettled extraction: manual tare blocked"));return
         }
         scaleControl.tare({beforeDispatch() && DeviceConnectionGate.mayChangeScale(extraction.state)},done)
+    }
+    /** GATT completion is not confirmation that the persisted recipe matches. */
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit) =
+        writeStoredLeverRecipe(parameters,beforeDispatch,{},done)
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,onDispatch:()->Unit,done:(OperationResult)->Unit) {
+        usable()
+        if(DeviceConnectionGate.unsettled(extraction.state)) {
+            done(OperationResult.Failed("extraction active"));return
+        }
+        coffee.session.writeStoredLeverRecipe(parameters,
+            { beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state) },onDispatch,done)
+    }
+    fun refreshStoredRecipeSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
+        usable()
+        coffee.session.refreshStoredRecipeSettings(
+            { beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state) },done)
     }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit)=writeSetting(change,{true},done)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){

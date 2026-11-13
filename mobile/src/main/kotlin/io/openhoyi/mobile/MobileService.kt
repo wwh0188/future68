@@ -96,6 +96,7 @@ class MobileService : Service() {
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
     private val series = ShotSeries()
+    private var dispatchingCurveId: String? = null
     private val brewFeedback = BrewFeedbackTracker()
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
@@ -132,7 +133,13 @@ class MobileService : Service() {
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
-    val machineControlSafetyMessage: String? get() = MachineControlGate.block(
+    /** Display-only update gate. The service remains the sole machine-control authority. */
+    internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
+        shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
+        shotRecovery.pending, machineWriteRecovery.pending, settingsWrite.state,
+        cupResetBusy, scheduleBusy, sleepNow.state, leverInFlight != null, leverStore.blocked) ||
+        (hub == null && io.openhoyi.bluetooth.SharedPreferenceTareStorage(this).read())
+    val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
     private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
@@ -210,6 +217,30 @@ class MobileService : Service() {
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
     internal var activeShotRecipe: ShotRecipeSnapshot? = null; private set
+    private val extractionScaleReadout = ExtractionScaleReadout()
+    private fun scaleReadoutOwner(current:NativeDeviceHub? = hub):ExtractionScaleReadout.Owner? = current?.let {
+        val address = it.scaleAddress ?: return@let null
+        ExtractionScaleReadout.Owner(it,it.extraction,it.extraction.displayShotSerial,scaleConnectionEpoch,address)
+    }
+    private fun observeScaleReadoutProof() {
+        val controller = hub?.extraction
+        val proof = controller?.displayTareBaseline?.let {
+            ExtractionScaleReadout.Proof(it.shotSerial,it.baselineHundredthsGram,it.confirmedAtMs)
+        }
+        extractionScaleReadout.observeProof(scaleReadoutOwner(),proof,controller?.state ?: shotState)
+    }
+    internal fun extractionScaleValue(now: Long): ExtractionScaleReadout.Value {
+        observeScaleReadoutProof()
+        return extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
+            shotState == ExtractionState.OUTCOME_UNKNOWN)
+    }
+    private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long) {
+        observeScaleReadoutProof()
+        if (frame is io.openhoyi.protocol.ExtractionTelemetry && frame.valveOpen && !frame.brewWait)
+            extractionScaleReadout.brewing()
+        if (frame is IdleTelemetry)
+            extractionScaleReadout.observedIdle(snapshot.scaleObservation, snapshot.scaleState, at)
+    }
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
@@ -303,6 +334,7 @@ class MobileService : Service() {
             snapshot.scaleObservation?.let(::onScaleObservation)
                 ?: scaleTrend.observe(null, snapshot.scaleState, now)
         }
+        snapshot.coffee?.let { observeExtractionScaleEndpoint(it, now) }
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -391,7 +423,14 @@ class MobileService : Service() {
     }
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
-    var snapshot = MobileSnapshot(); private set
+    private val shortcutConfiguration = ShortcutContentRevision<List<Any?>>(
+        listOf(null, DeviceState.DISCONNECTED, DeviceState.DISCONNECTED, null))
+    internal val shortcutConfigurationRevision get() = shortcutConfiguration.revision
+    var snapshot = MobileSnapshot()
+        private set(value) {
+            shortcutConfiguration.observe(listOf(value.settings, value.coffeeState, value.scaleState, value.scaleCapabilities))
+            field = value
+        }
     val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
@@ -419,9 +458,15 @@ class MobileService : Service() {
     private fun observeTare() {
         val current = tareState
         if(current == lastTareState) return
+        logTarePhase(current)
         lastTareState = current
         if(current == StandaloneTare.State.CONFIRMED) event(ResourceMessage(R.string.service_tare_confirmed), "scale.tare_confirmed")
         if(current == StandaloneTare.State.UNKNOWN) event(ResourceMessage(R.string.service_tare_unknown), "scale.tare_unknown")
+    }
+    private fun logTarePhase(current: StandaloneTare.State) {
+        if (current == lastTareState) return
+        logs.record("scale.tare_phase", mapOf("from" to lastTareState.name, "to" to current.name,
+            "shotState" to shotState.name, "preparingScale" to scalePreflight.toString()))
     }
     private val watchShot = object : Runnable {
         override fun run() {
@@ -460,7 +505,8 @@ class MobileService : Service() {
                 event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
-                    event(ResourceMessage(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
+                    event(ResourceMessage(if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
+                        R.string.service_event_tare_cancelled_waiting else R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
                     event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
@@ -495,6 +541,8 @@ class MobileService : Service() {
     }
     fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) settleLeverWriteUnknown()
+
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
@@ -568,6 +616,8 @@ class MobileService : Service() {
     }
 
     private fun onCoffeeFrame(frame: HoyiMessage) {
+        if (frame is io.openhoyi.protocol.ExtractionTelemetry && (frame.valveOpen || frame.brewWait))
+            interruptUpdateInstallation()
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
@@ -631,6 +681,7 @@ class MobileService : Service() {
             else -> snapshot
         }
         val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
+        observeExtractionScaleEndpoint(frame, observedAt)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
@@ -660,6 +711,8 @@ class MobileService : Service() {
                         (observedAt - passiveEvent.first.atMs)
                     val provisionalId = java.util.UUID.randomUUID().toString()
                     series.begin(provisionalId, passiveEvent.first.atMs, "manual")
+                    extractionScaleReadout.begin(provisionalId, null)
+                    extractionScaleReadout.brewing()
                     manualPresentation.started(provisionalId)
                     val feedbackSlot = passiveEvent.first.frame.slotOrPhase
                     beginBrewFeedback(provisionalId, feedbackSlot, if (feedbackSlot == 6) 0 else null,
@@ -769,6 +822,12 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
+        app.releaseUpdates.serviceCreated(this)
+        app.curveDeletionGuards[ownerId] = { id ->
+            CurveDeletionPolicy.inUse(id, dispatchingCurveId, series.curveId,
+                ShotGate.active(shotState) || scalePreflight,
+                brewPreparation.profileId, brewPreparation.active)
+        }
         app.feedbackPreferences.observe(ownerId) { enabled -> if (!enabled) feedbackDelivery.clear() }
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
@@ -934,6 +993,11 @@ class MobileService : Service() {
     private fun coffeeConnectionAllowed(address: String, automatic: Boolean): Boolean {
         if (mock != null) { event(ResourceMessage(R.string.service_coffee_mock), "mock.connect"); return false }
         if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block)); return false }
+        leverStore.blockingAttempt?.let {
+            if (leverInFlight != null || !it.snapshot.address.equals(address, ignoreCase = true)) {
+                event(ResourceMessage(R.string.lever_reconnect_original), "lever_recipe.device_mismatch"); return false
+            }
+        }
         if (!shotRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return false
         }
@@ -1021,7 +1085,12 @@ class MobileService : Service() {
             autoConnect.pause(DeviceRole.BOOKOO,true)
         }
     }
+    /** UI intent revocation only; it cannot authorize, cancel or replay a machine operation. */
+    private fun interruptUpdateInstallation() {
+        (application as? MobileApplication)?.let { app -> runCatching { app.releaseUpdates.interruptInstallLease() } }
+    }
     fun tareScale(): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.tare()
             if (result == null) {
@@ -1045,6 +1114,7 @@ class MobileService : Service() {
                 hub === current,snapshot.scaleState==DeviceState.READY,manualShotActive,shotState)
         }) done@{ result ->
             if(hub !== current)return@done
+            logTarePhase(tareState)
             lastTareState = tareState
             when (tareState) {
                 StandaloneTare.State.WAITING_ZERO -> event(ResourceMessage(R.string.service_tare_written), "scale.tare_written")
@@ -1115,6 +1185,7 @@ class MobileService : Service() {
     }
 
     fun changeMachineSetting(change: MachineSettingChange): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSetting(change)
             if (result == null) {
@@ -1201,7 +1272,116 @@ class MobileService : Service() {
         }
         return null
     }
+    // The framework-attached Application owns the journal even when the base context is isolated.
+    // Detached upgrade checks have only a base context. Never substitute an empty journal.
+    private val leverStore get() = ((application as? MobileApplication)
+        ?: (applicationContext as MobileApplication)).leverRecipes
+    private var leverInFlight: String? = null
+    internal val leverDeviceAddress: String? get() = if (mock != null) "00:00:00:00:00:01" else hub?.coffeeAddress
+    private val leverWriteBlock: String? get() = if (leverStore.blocked)
+        getString(if (leverStore.active) R.string.lever_sending else R.string.lever_unresolved) else null
+
+    /** No complete recipe readback exists. This API reports transport only, never durable save. */
+    internal fun leverRecipeWriteBlock(): String? {
+        leverWriteBlock?.let { return it }
+        return leverRecipeConditions()
+    }
+    private fun leverRecipeConditions(): String? {
+        MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
+        if (manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
+            settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN) || sleepNow.state in setOf(SleepNowTracker.State.WRITING,
+                SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
+            return getString(R.string.service_write_operation_pending)
+        if (mock != null) return null
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) ||
+            idle.sleepStateRaw != 0 || idle.alarmBits != 0 || !machineSettingsFresh)
+            return getString(R.string.service_write_awake_idle_needed)
+        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
+            return getString(R.string.lever_firmware_unsupported)
+        return null
+    }
+    internal fun sendLeverRecipe(profile: CurveProfile, expectedAddress: String, expectedFirmware: String,
+        outcome: (String) -> Unit): String? {
+        interruptUpdateInstallation()
+        leverRecipeWriteBlock()?.let { return it }
+        val app = application as MobileApplication
+        if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
+            app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))
+            return getString(R.string.lever_changed)
+        val frame = runCatching { io.openhoyi.protocol.StoredLeverRecipeFormat.candidate(profile.parameters).hex() }
+            .getOrNull() ?: return getString(R.string.lever_changed)
+        val current = hub
+        val generation = current?.coffeeGeneration
+        val token = leverStore.begin(MachineLeverRecipeStore.Snapshot(expectedAddress, profile.id, profile.name,
+            frame, System.currentTimeMillis(), expectedFirmware)) ?: return getString(R.string.lever_record_failed)
+        leverInFlight = token
+        event(ResourceMessage(R.string.lever_sending), "lever_recipe.requested")
+        fun complete(result: OperationResult) {
+            if (leverInFlight != token) return
+            leverInFlight = null
+            val sameOwner = mock != null || (hub === current && current?.coffeeGeneration == generation &&
+                leverDeviceAddress == expectedAddress)
+            val state = when {
+                !sameOwner -> MachineLeverRecipeStore.State.UNKNOWN
+                result is OperationResult.Success -> MachineLeverRecipeStore.State.SENT
+                result is OperationResult.Failed || result is OperationResult.Cancelled -> MachineLeverRecipeStore.State.FAILED
+                else -> MachineLeverRecipeStore.State.UNKNOWN
+            }
+            val persisted = leverStore.complete(token, state)
+            val resource = when {
+                !persisted -> R.string.lever_record_failed
+                state == MachineLeverRecipeStore.State.SENT -> R.string.lever_sent
+                state == MachineLeverRecipeStore.State.FAILED -> R.string.lever_not_sent
+                else -> R.string.lever_result_unknown
+            }
+            event(ResourceMessage(resource), "lever_recipe.result")
+            if (persisted && state == MachineLeverRecipeStore.State.SENT && mock == null && current != null) {
+                // Read fresh mode/settings once. 0x83 is NOT stored-recipe verification.
+                current.refreshStoredRecipeSettings({
+                    hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                        snapshot.coffeeState == DeviceState.READY && !leverStore.blocked &&
+                        !manualShotActive && !ShotGate.active(shotState) && !brewPreparation.active &&
+                        !machineWriteRecovery.pending && !cupResetBusy && !scheduleBusy &&
+                        settingWriteState !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+                }) { refresh ->
+                    if (refresh !is OperationResult.Success)
+                        logs.record("lever_recipe.settings_refresh_unconfirmed", mapOf("result" to refresh.javaClass.simpleName))
+                }
+            }
+            outcome(getString(resource))
+        }
+        if (mock != null) { complete(OperationResult.Success()); return null }
+        if (current == null) { complete(OperationResult.Failed("no owner")); return null }
+        try { current.writeStoredLeverRecipe(profile.parameters, {
+            leverInFlight == token && leverStore.pending(token) && hub === current &&
+                current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                coffeeFirmware.toString() == expectedFirmware && leverRecipeConditions() == null &&
+                app.curves.resolve(profile.id, false, 7) == profile && app.curves.validated(profile)
+        }, { snapshot = snapshot.copy(settingsAt = null) }, ::complete)
+        } catch (_: Exception) { complete(OperationResult.Unknown("recipe submission interrupted")) }
+        return null
+    }
+    private fun settleLeverWriteUnknown() {
+        leverInFlight?.let { token ->
+            leverInFlight = null
+            leverStore.complete(token, MachineLeverRecipeStore.State.UNKNOWN)
+        }
+    }
+    internal fun acknowledgeLeverRecipeUnknown(): String? {
+        if (leverInFlight != null) return getString(R.string.lever_sending)
+        val record = leverStore.blockingAttempt ?: return getString(R.string.lever_record_failed)
+        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null)
+            return getString(R.string.lever_reconnect_original)
+        if (!leverStore.acknowledge(record.token)) return getString(R.string.lever_record_failed)
+        event(ResourceMessage(R.string.lever_result_unknown), "lever_recipe.acknowledged")
+        return null
+    }
+
     fun resetCupCount(expectedCount: Int): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.resetCupCount(expectedCount)
             if (result == null) {
@@ -1274,6 +1454,7 @@ class MobileService : Service() {
         return null
     }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSchedule(expected, target)
             if (result == null) {
@@ -1357,6 +1538,7 @@ class MobileService : Service() {
         return null
     }
     fun enterSleepNow(): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.sleepNow()
             if (result == null) {
@@ -1426,7 +1608,7 @@ class MobileService : Service() {
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)
             PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
-                .getString(PresetSlots.key(slot), null))
+                .getString(PresetSlots.key(slot), null), (application as MobileApplication).curves)
         else null
         return profileId.takeIf { it == selectedId }?.let {
             (application as MobileApplication).curves.resolve(it, snapshot.scaleState == DeviceState.READY, slot)
@@ -1472,6 +1654,7 @@ class MobileService : Service() {
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
@@ -1608,7 +1791,26 @@ class MobileService : Service() {
         }
         return null
     }
-    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+    /** Connection identity is read-only; a shortcut cannot migrate to a replacement session. */
+    internal val shortcutDeviceIdentity: Any?
+        get() {
+            if (mock != null) return mockExtractionOwner ?: mock
+            val current = hub ?: return null
+            val address = current.coffeeAddress ?: return null
+            return Triple(current, address, current.coffeeGeneration)
+        }
+
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7,
+        startPermit: (() -> Boolean)? = null): String? {
+        interruptUpdateInstallation()
+        dispatchingCurveId = profileId
+        return try { startShotChecked(profileId, expectedScaleMode, slot, startPermit) }
+        finally { dispatchingCurveId = null }
+    }
+    private fun startShotChecked(profileId: String, expectedScaleMode: Boolean?, slot: Int,
+                                 startPermit: (() -> Boolean)?): String? {
+        fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
+        if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
         val app = application as MobileApplication
         val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
         if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
@@ -1630,12 +1832,13 @@ class MobileService : Service() {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
+            if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
             val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
             val scenarioOwner = mockExtractionOwner
             if (scenarioOwner == null) mock.start(now, slot)
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
                     profile.targetHundredthsGram, profile.compensationHundredthsGram) {
-                    selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
+                    callerPermits() && selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
                         customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
@@ -1644,6 +1847,7 @@ class MobileService : Service() {
             }
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+            extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
                 (application as MobileApplication).curves.find(profile.id)?.customDocument)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
@@ -1651,6 +1855,7 @@ class MobileService : Service() {
             else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
             return null
         }
+        leverWriteBlock?.let { return it }
         if (manualShotActive) return getString(R.string.service_shot_manual_block)
         if (machineWriteRecovery.kind != MachineWriteRecoveryState.Kind.BREW_WAIT ||
             !machineWriteRecovery.matchesDevice(hub?.coffeeAddress) ||
@@ -1706,7 +1911,7 @@ class MobileService : Service() {
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
-                shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
+                callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,
@@ -1726,6 +1931,7 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+        extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram, scaleReadoutOwner(current))
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
             (application as MobileApplication).curves.find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
@@ -1755,10 +1961,16 @@ class MobileService : Service() {
         }.getOrNull()
     }
     fun stopShot() {
+        interruptUpdateInstallation()
         if (mock != null) {
             if (ShotGate.active(shotState)) {
                 val scenarioOwner = mockExtractionOwner
-                if (scenarioOwner == null) mock.stop() else mockExtractionScenario.stop(scenarioOwner)
+                if (scenarioOwner == null) {
+                    mock.stop()
+                    // Ordinary Mock has no BLE idle callback. Publish its explicit stopped sample
+                    // before watchShot can finalize the readout; synthetic inputs remain notification-only.
+                    refreshMock(mock, MobileMonotonicClock.elapsedRealtime())
+                } else mockExtractionScenario.stop(scenarioOwner)
                 if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
                 else event(ResourceMessage(R.string.service_shot_stop_requested), "mock.synthetic_stop_requested")
             }
@@ -1807,7 +2019,10 @@ class MobileService : Service() {
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
+        extractionScaleReadout.finish(observedEnd)
         val finished = series.finish() ?: return
+        runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication
         if (observedEnd && finished.second.isNotEmpty() &&
             history?.entries?.any { it.id == finished.first } == true) {
@@ -1842,6 +2057,7 @@ class MobileService : Service() {
     private fun event(message: String, kind: String = "mobile.event") =
         recordMessage(SnapshotMessage.raw(message), kind)
     private fun recordMessage(message: SnapshotMessage, kind: String) {
+        (application as? MobileApplication)?.let { app -> runCatching { app.releaseUpdates.interruptionStateChanged() } }
         snapshot = snapshot.copy(message = message)
         logs.record(kind, mapOf("message" to message.initialText, "ownerId" to ownerId))
         Log.i(TAG, message.initialText)
@@ -2084,6 +2300,10 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        settleLeverWriteUnknown()
+        (application as MobileApplication).releaseUpdates.serviceDestroyed(this)
+
+        (application as MobileApplication).curveDeletionGuards.remove(ownerId)
         running = false
         (application as MobileApplication).serviceAvailability.stopped(ownerId)
         (application as MobileApplication).feedbackPreferences.unobserve(ownerId)

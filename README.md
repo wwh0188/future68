@@ -1,15 +1,15 @@
 # OpenHOYI 77 扩展 · future68 自用仓库
 
-这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并采纳 dev-79／dev-82／dev-84／dev-85／dev-86 的相关修复，以及原项目源码、历史和 GPL v2 许可证。
+这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并对齐到 dev104 的相关 App 更新，以及原项目源码、历史和 GPL v2 许可证。
 
 - 补齐拨杆的四种官方模式组合。
 - 支持曲线整体变压／变流、逻辑与变流首段设置。
 - 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
 - 保留 77 版的独立总量上限。
 
-**[从 GitHub 下载 V6 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v6.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v6.json)
+**[从 GitHub 下载 V7 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v7.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v7.json)
 
-应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V6（87）对齐 dev85 的首页/实时萃取暗色配色，以及 dev86 的 Acaia Lunar 已知重量/计时组合数据解析；不扩大秤控制权限。保留 Felicita ART、拨杆、说明编辑、补偿/隐藏段，以及 V5 的锅炉回读、直接启动、预热和固件 1.1.5 支持。可覆盖升级 V1～V5，保持原包名和测试签名；详见 [V6 审查记录](docs/evidence/personal-dev86-audit.md)。本次未进行实际安装、屏幕或机器验收；首段低流量预浸仍不保证 0 bar。
+应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V7（105）增加拨杆配方最近发送记录、自定义快捷槽位、默认关闭的一键萃取、实时重量/液重、历史计时区分、曲线删除撤销、统一开关，以及连接恢复/残帧/扫描修复。保留 Felicita ART、四种拨杆模式、多行说明、补偿/隐藏段和此前修复。个人更新入口继续使用私有 GitHub，不下载原版 APK。可覆盖升级 V1～V6；详见 [V7 审查记录](docs/evidence/personal-dev104-audit.md)。本轮未实际安装或验收屏幕/设备效果；首段低流量预浸仍不保证 0 bar。
 
 本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
 

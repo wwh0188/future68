@@ -1,0 +1,5 @@
+<resources>
+    <string name="personal_update_title">个人版更新</string>
+    <string name="personal_update_body">此个人版通过 GitHub 下载更新。打开下载页，登录后下载安装包并覆盖安装。</string>
+    <string name="personal_update_open">打开 GitHub 下载页</string>
+</resources>

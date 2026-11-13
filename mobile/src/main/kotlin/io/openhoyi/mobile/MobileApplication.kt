@@ -15,6 +15,8 @@ class MobileApplication : Application() {
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
     private lateinit var languageContext: AppLanguageContextProvider
+    internal lateinit var releaseUpdates: ReleaseUpdateOwner
+        private set
     internal val visibility = AppVisibility()
     internal val serviceAvailability = ServiceAvailability()
     internal lateinit var autoConnect:DeviceAutoConnectOwner
@@ -34,6 +36,7 @@ class MobileApplication : Application() {
         }
         autoConnect=DeviceAutoConnectOwner(this)
         registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
+        releaseUpdates = ReleaseUpdateOwner(this)
     }
 
     override fun onTerminate(){
@@ -53,6 +56,14 @@ class MobileApplication : Application() {
     override fun getResources(): Resources =
         if (::languageContext.isInitialized) languageContext.context().resources else super.getResources()
 
+    internal val leverRecipes by lazy {
+        val prefs = getSharedPreferences("machine_lever_recipes", MODE_PRIVATE)
+        MachineLeverRecipeStore(object : MachineLeverRecipeStore.Storage {
+            override fun read(): String? = prefs.getString("journal", null)
+            override fun write(value: String): Boolean = prefs.edit().putString("journal", value).commit()
+        })
+    }
+
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
     val curves: CurveLibrary by lazy {
         val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))
@@ -62,8 +73,22 @@ class MobileApplication : Application() {
         }
             .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
             .getOrNull()
-        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true)
+        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true,
+            presetBinding = { slot, stored -> customCurvesResult.getOrNull()?.presetBinding(slot, stored) ?: stored })
     }
+    internal val curveDeletionGuards = mutableMapOf<String, (String) -> Boolean>()
+    internal var pendingCurveDeletion: CustomCurveStore.Deletion? = null
+    internal fun deleteCurve(item: CurveLibraryItem): CustomCurveStore.Deletion {
+        check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
+        val prefs = getSharedPreferences("presets", MODE_PRIVATE)
+        val bindings = (1..5).mapNotNull { slot -> prefs.getString(PresetSlots.key(slot), null)?.let { slot to it } }.toMap()
+        return customCurvesResult.getOrThrow().delete(item.id, bindings, item.customDocument) {
+            curveDeletionGuards.values.none { it(item.id) }
+        }.also { pendingCurveDeletion = it }
+    }
+    internal fun historicalCurveName(id: String): String? =
+        runCatching { curves.find(id)?.name }.getOrNull() ?: customCurvesResult.getOrNull()?.historicalName(id)
+
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->
             logs.record("shot.samples_error", mapOf("type" to error.javaClass.simpleName))
@@ -110,6 +135,31 @@ class MobileApplication : Application() {
                     runCatching { logs.record("journal.reconcile_pending", mapOf("type" to error.javaClass.simpleName)) }
                 }
             samples.prune(recent.entries.map(ShotHistory.Entry::id).toSet())
+        }
+    }
+    /** Called only by an attached history view on the main thread after its existing async read. */
+    internal fun recoverViewedSampleCoverage(entry: ShotHistory.Entry, points: List<ShotPoint>): ShotHistory.Entry {
+        if (entry.observedMachineElapsedSeconds != null || entry.observedSampleCoverageMs != null) return entry
+        val coverage = observedSampleCoverage(points) ?: return entry
+        return runCatching {
+            val recent = history.entries.firstOrNull { it.id == entry.id }
+            if (recent != null) {
+                require(recent.curveId == entry.curveId && recent.startedAtMs == entry.startedAtMs)
+                history.recoverSampleCoverage(entry.id, points)
+                history.entries.first { it.id == entry.id }
+            } else {
+                val journal = journalResult.getOrThrow()
+                val stored = journal.find(entry.id) ?: return@runCatching entry
+                require(stored.observation.curveId == entry.curveId && stored.observation.startedAtMs == entry.startedAtMs)
+                if (stored.observation.observedMachineElapsedSeconds != null || stored.observation.observedSampleCoverageMs != null)
+                    return@runCatching stored.observation.historySummary()
+                val updated = stored.observation.copy(observedSampleCoverageMs = coverage)
+                journal.observe(updated)
+                updated.historySummary()
+            }
+        }.getOrElse { error ->
+            runCatching { logs.record("shot.coverage_recovery_pending", mapOf("type" to error.javaClass.simpleName)) }
+            entry
         }
     }
     val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }

@@ -8,7 +8,7 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.*
 
-/** Library browsing and selection are local only; no BLE command is sent here. */
+/** Browsing stays local; machine-recipe writes require a separate explicit confirmation. */
 class CurveFragment : androidx.fragment.app.Fragment() {
     private val transientDialogs = mutableListOf<AlertDialog>()
     private fun showTransient(builder: AlertDialog.Builder) {
@@ -31,6 +31,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private lateinit var select: Button
     private lateinit var parameterShortcut: Button
     private lateinit var assignPreset: Button
+    private lateinit var setLeverRecipe: Button
     private lateinit var editDraft: Button
     private lateinit var shareParameters: Button
     private lateinit var adapter: ArrayAdapter<String>
@@ -46,6 +47,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailBack: Button
     private lateinit var detailToolbar: LinearLayout
+    private lateinit var deletionUi: CurveDeletionUi
     private lateinit var detailActions: Button
     private lateinit var directEdit: Button
     private lateinit var directShare: Button
@@ -72,6 +74,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private val curveDetailsText by lazy { CurveDetailsText(host) }
     private val library get() = (application as MobileApplication).curves
 
+    private fun leverToolbarLabel(): String {
+        val locale = resources.configuration.locales[0]
+        val traditional = locale.language == "zh" &&
+            (locale.script == "Hant" || locale.country in setOf("TW", "HK", "MO"))
+        return getString(if (traditional) R.string.lever_toolbar_label_traditional else R.string.lever_toolbar_label)
+    }
+
     private fun iconOnly(button: Button, kind: String, label: CharSequence) {
         productStyle.button(button)
         button.text = ""
@@ -81,7 +90,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         button.compoundDrawablePadding = 0
         button.setCompoundDrawablesRelativeWithIntrinsicBounds(
             HomeVisualIcon.drawable(button.context, kind, button.currentTextColor,
-                currentTint = { button.currentTextColor }), null, null, null)
+                currentTint = { button.currentTextColor }, strokeDp = 1.7f), null, null, null)
         button.minimumWidth = dp(48)
         button.minWidth = dp(48)
     }
@@ -106,6 +115,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
         browserPane = collection.browserBody
+        deletionUi = CurveDeletionUi(host, browserPane) { refreshList() }
         detailPanel = collection.detailBody
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
         collection.foreground = object : android.graphics.drawable.Drawable() {
@@ -122,16 +132,47 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         val browser = browserPane
         val detailPane = detailPanel
-        detailToolbar = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            isBaselineAligned = false
-        }
-        detailPanel.addView(detailToolbar)
+        // All actions remain discoverable: wrap whole 48dp targets, never hide icons.
+        detailToolbar = object : LinearLayout(host) {
+            private val positions = mutableMapOf<View, android.graphics.Rect>()
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val available = MeasureSpec.getSize(widthMeasureSpec)
+                val children = (0 until childCount).map(::getChildAt).filter { it.visibility != View.GONE }
+                val title = children.firstOrNull { it.tag == "full-text-details" }
+                val actionWidths = children.filter { it !== title }.associateWith { child ->
+                    if (child.tag == "curve-set-lever-recipe" || child.tag == "curve-assign-slot") {
+                        child.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                            MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY))
+                        maxOf(dp(48), child.measuredWidth)
+                    } else dp(48)
+                }
+                val iconsWidth = actionWidths.values.sum()
+                val titleWidth = (available - iconsWidth).takeIf { it >= dp(120) } ?: available
+                var x = 0; var y = 0; var rowHeight = 0
+                positions.clear()
+                children.forEach { child ->
+                    val w = if (child === title) titleWidth else actionWidths.getValue(child)
+                    child.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(if (child === title) 0 else dp(48),
+                            if (child === title) MeasureSpec.UNSPECIFIED else MeasureSpec.EXACTLY))
+                    if (x > 0 && x + w > available) { y += rowHeight; x = 0; rowHeight = 0 }
+                    positions[child] = android.graphics.Rect(x, y, x + w, y + child.measuredHeight)
+                    x += w; rowHeight = maxOf(rowHeight, child.measuredHeight)
+                }
+                setMeasuredDimension(available, y + rowHeight)
+            }
+            override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+                positions.forEach { (child, rect) ->
+                    if (layoutDirection == View.LAYOUT_DIRECTION_RTL)
+                        child.layout(width - rect.right, rect.top, width - rect.left, rect.bottom)
+                    else child.layout(rect.left, rect.top, rect.right, rect.bottom)
+                }
+            }
+        }.apply { isBaselineAligned = false }
+        detailPanel.addView(detailToolbar, LinearLayout.LayoutParams(-1, -2))
         detailBack = HoyiUi.button(host, detailToolbar, getString(R.string.curve_back)) { showBrowser() }.apply {
-            productStyle.button(this)
-            HomeVisualIcon.buttonIcon(this, "back")
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
+            iconOnly(this, "back", getString(R.string.curve_back))
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         }
         collection.onPresentationChanged = { twoPane, detailVisible ->
             compact = !twoPane
@@ -422,20 +463,23 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         }
-        val editing = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
         editDraft = HoyiUi.button(host, secondary, getString(R.string.profiles_edit_copy)) {
             selected?.let { startActivity(Intent(host, CurveEditorActivity::class.java).putExtra(CurveEditorActivity.CURVE_ID, it.id)) }
         }.apply {
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6); topMargin = dp(6) }
         }
-        assignPreset = HoyiUi.button(host, editing, getString(R.string.curve_assign_slot)) {
-            val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
+        assignPreset = HoyiUi.button(host, detailToolbar, getString(R.string.curve_assign_slot)) {
+            val item = selected?.takeIf { PresetSlots.canAssign(it, library) } ?: return@button
             AlertDialog.Builder(host).setTitle(getString(R.string.curve_choose_slot))
                 .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
+                    if (library.find(item.id) != item || !PresetSlots.canAssign(item, library)) {
+                        Toast.makeText(host, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
+                        return@setItems
+                    }
                     val slot = index + 1
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
-                        .putString(PresetSlots.key(slot), item.id).apply()
+                        .putString(PresetSlots.key(slot), PresetSlots.bind(item.id)).apply()
                     lastAssignedCurveId = item.id
                     lastAssignedSlot = slot
                     updateAvailabilityFeedback()
@@ -443,7 +487,17 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 }.let(::showTransient)
         }.apply {
             isEnabled = false; visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
+            productStyle.button(this)
+            text = getString(R.string.slot_toolbar_label)
+            contentDescription = getString(R.string.curve_assign_slot)
+            tooltipText = contentDescription
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            setSingleLine(true)
+            includeFontPadding = false
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            minimumWidth = dp(48); minWidth = dp(48)
+            tag = "curve-assign-slot"
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         }
         val parameterDetails = HoyiUi.button(host, secondary, getString(R.string.curve_plan_all_parameters)) { showParameterDetails() }
         directEdit = HoyiUi.button(host, detailToolbar, getString(R.string.profiles_edit)) { editDraft.performClick() }.apply {
@@ -454,8 +508,31 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             iconOnly(this, "share", getString(R.string.profiles_share)); visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(8) }
         }
+        setLeverRecipe = HoyiUi.button(host, detailToolbar, getString(R.string.lever_set_title)) {
+            selected?.let { MachineLeverRecipeUi.confirm(host, it) }
+        }.apply {
+            visibility = View.GONE; tag = "curve-set-lever-recipe"
+            productStyle.button(this)
+            text = leverToolbarLabel()
+            contentDescription = getString(R.string.lever_set_title)
+            tooltipText = contentDescription
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            setSingleLine(true)
+            includeFontPadding = false
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            minimumWidth = dp(48); minWidth = dp(48)
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        }
+        detailToolbar.removeView(assignPreset)
+        detailToolbar.addView(assignPreset)
+        val deleteCurve = Button(host).apply {
+            text = getString(R.string.curve_delete)
+            tag = "curve-delete"
+            setOnClickListener { selected?.let(deletionUi::confirm) }
+        }
         detailActions = HoyiUi.button(host, detailToolbar, getString(R.string.task_curve_library_actions)) {
-            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
+            deleteCurve.visibility = if (selected?.customDocument != null) View.VISIBLE else View.GONE
+            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, deleteCurve))
         }.apply {
             iconOnly(this, "more", getString(R.string.task_curve_library_actions))
             tag = "curve-detail-actions"
@@ -532,6 +609,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     override fun onResume() {
         super.onResume()
         if (!::adapter.isInitialized) return
+        deletionUi.refresh()
         val previousId = selected?.id
         val wasVisible = !compact || detailPanel.visibility == View.VISIBLE
         val requested = collection.detailRequested
@@ -543,6 +621,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     }
 
     override fun onPause() {
+        if (::deletionUi.isInitialized) deletionUi.pause()
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         clearAssignmentFeedback()
         super.onPause()
@@ -647,8 +726,10 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         select.visibility = View.VISIBLE
         parameterShortcut.visibility = View.VISIBLE
         select.text = if (canStart) getString(R.string.curve_use) else getString(R.string.curve_cannot_start)
-        assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
-        assignPreset.isEnabled = item.factoryCurve != null && canStart
+        assignPreset.visibility = if (item.factoryCurve != null || item.customDocument != null) View.VISIBLE else View.GONE
+        assignPreset.isEnabled = PresetSlots.canAssign(item, library)
+        setLeverRecipe.visibility = if (canStart) View.VISIBLE else View.GONE
+        setLeverRecipe.isEnabled = canStart
         adapter.notifyDataSetChanged()
         viewport?.let { curveList.onRestoreInstanceState(it) }
     }
@@ -670,15 +751,10 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val hasPressure = preview.stages.isNotEmpty()
         val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         val portraitDetail = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-        val normalToolbar = (if (portraitDetail) listOf(directEdit, directShare, detailActions) else listOf(detailTitle, directEdit, directShare, detailActions)) + if (compact) listOf(detailBack) else emptyList()
-        val directWidth = normalToolbar.sumOf { child ->
-            child.measure(natural, natural)
-            val params = child.layoutParams as LinearLayout.LayoutParams
-            child.measuredWidth + params.marginStart + params.marginEnd
-        }
-        val direct = directWidth <= width
-        directEdit.visibility = if (direct) View.VISIBLE else View.GONE
-        directShare.visibility = if (direct) View.VISIBLE else View.GONE
+        val directWidth = dp(48) * (5 + if (compact) 1 else 0)
+        val direct = true
+        directEdit.visibility = View.VISIBLE
+        directShare.visibility = View.VISIBLE
         if (portraitDetail) {
             shortPreview = false
             detailTitle.visibility = View.VISIBLE
@@ -770,6 +846,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             selected = null
             collection.detailRequested = false
             detailActions.visibility = View.GONE
+            directEdit.visibility = View.GONE
+            directShare.visibility = View.GONE
+            setLeverRecipe.visibility = View.GONE
             detailScroll.visibility = View.GONE
             previewFallbackScroll.visibility = View.GONE
             previewSpacer.visibility = View.GONE
@@ -789,6 +868,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             parameterShortcut.visibility = View.GONE
             assignPreset.isEnabled = false
             assignPreset.visibility = View.GONE
+            setLeverRecipe.visibility = View.GONE
             editDraft.visibility = View.GONE
             shareParameters.visibility = View.GONE
         }

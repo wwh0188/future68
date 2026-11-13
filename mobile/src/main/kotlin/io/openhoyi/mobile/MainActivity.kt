@@ -16,6 +16,7 @@ import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
+import android.content.SharedPreferences
 import android.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
@@ -62,11 +63,22 @@ class MainActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val manualPresentation = object : Runnable {
         override fun run() {
+            shortcutStart?.allows()
             presentManualShotIfNew()
             if (::shellStatus.isInitialized) shellStatus.present(service)
             if (foreground) handler.postDelayed(this, 250)
         }
     }
+    private var shortcutStart: ShortcutStartPermit? = null
+    private val shortcutPreferences by lazy { ShortcutStartPreferences(this) }
+    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
+    private val shortcutPreferenceFiles by lazy {
+        listOf("presets", "curves", "devices").map { getSharedPreferences(it, MODE_PRIVATE) }
+    }
+    private val shortcutPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        revokeShortcutStart()
+    }
+    internal fun revokeShortcutStart() { shortcutStart?.revoke(); shortcutStart = null }
     private val subscribers = mutableSetOf<(MobileService?) -> Unit>()
     private val transientDialogs = mutableListOf<AlertDialog>()
     internal fun trackDialog(dialog: AlertDialog) { transientDialogs += dialog }
@@ -95,6 +107,7 @@ class MainActivity : ThemedActivity() {
     }
     internal fun removeServiceObserver(observer: (MobileService?) -> Unit) { subscribers -= observer }
     private fun publishService() {
+        shortcutStart?.allows()
         subscribers.toList().forEach { it(service) }
         if (::shellStatus.isInitialized) shellStatus.present(service)
         presentManualShotIfNew()
@@ -223,6 +236,8 @@ class MainActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        shortcutPreferenceFiles.forEach { it.registerOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
+        stopShortcutPreferenceObserver = shortcutPreferences.observe(::revokeShortcutStart)
         destination = (savedInstanceState?.getString(STATE_DESTINATION)
             ?: intent.getStringExtra(EXTRA_INITIAL_DESTINATION))?.let { runCatching { TaskDestination.valueOf(it) }.getOrNull() }
             ?: TaskDestination.BREW
@@ -262,6 +277,11 @@ class MainActivity : ThemedActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { navigateBack() }
         })
+        if (savedInstanceState == null && extractionVisible) {
+            val routed = routeShortcut(extractionSlot)
+            if (routed == null) { extractionVisible = false; destination = TaskDestination.BREW }
+            else extractionSlot = routed
+        }
         showCurrent()
         if (savedInstanceState == null) {
             routeHistorySource(intent)
@@ -288,10 +308,18 @@ class MainActivity : ThemedActivity() {
         handler.post(manualPresentation)
     }
     override fun onPause() {
+        revokeShortcutStart()
         foreground = false
         handler.removeCallbacks(manualPresentation)
         dismissTransientDialogs()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        revokeShortcutStart()
+        shortcutPreferenceFiles.forEach { it.unregisterOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
+        super.onDestroy()
     }
 
     private fun tag(destination: TaskDestination) = "root:${destination.name}"
@@ -318,6 +346,7 @@ class MainActivity : ThemedActivity() {
         scaleSettingsReturn = true
     }
     internal fun select(next: TaskDestination) {
+        revokeShortcutStart()
         if (next == destination && !extractionVisible) return
         scaleSettingsReturn = false
         settingsOrigin = null
@@ -328,16 +357,128 @@ class MainActivity : ThemedActivity() {
         showCurrent()
     }
 
+    /** Navigation only: custom shortcuts select the saved recipe and retain wire slot 7. */
+    private fun routeShortcut(slot: Int): Int? {
+        if (slot !in 1..5) return 7
+        val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
+        return when (val route = PresetSlots.route(slot, stored, (application as MobileApplication).curves)) {
+            is PresetSlots.Route.Ready -> {
+                if (route.selectCurve) getSharedPreferences("curves", MODE_PRIVATE).edit()
+                    .putString("selected", route.curveId).apply()
+                route.wireSlot
+            }
+            PresetSlots.Route.Missing, PresetSlots.Route.Unavailable -> {
+                Toast.makeText(this, getString(R.string.curve_slot_unavailable), Toast.LENGTH_LONG).show()
+                null
+            }
+        }
+    }
+
+    /** Explicit Home shortcut taps only. All other navigation remains inert. */
+    internal fun openShortcut(slot: Int) {
+        PresetSlots.requireSlot(slot)
+        if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
+        revokeShortcutStart()
+        val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
+        val library = (application as MobileApplication).curves
+        if (PresetSlots.curveId(slot, stored, library) == PresetSlots.EMPTY) {
+            select(TaskDestination.CURVES)
+            return
+        }
+        val route = PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready
+            ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
+        launchHomeCurve(slot, route) {
+            getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null) == stored &&
+                PresetSlots.route(slot, stored, library) == route
+        }
+    }
+
+    internal fun lastCurveReference(): HomeLastCurve.Reference? {
+        val app = application as MobileApplication
+        // Loading history migrates positively observed uses into the permanent ledger first.
+        val history = runCatching { app.history }.getOrNull() ?: return null
+        val ledger = app.curveUsageResult.getOrNull() ?: return null
+        val recent = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
+            ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
+        return HomeLastCurve.Reference(ledger.latest(), recent)
+    }
+
+    internal fun resolveLastCurve(reference: HomeLastCurve.Reference? = lastCurveReference()): HomeLastCurve {
+        val app = application as MobileApplication
+        return reference?.let { HomeLastCurve.from(it.latest, app.curves.items, it.recentObserved, app.curves::canStart) }
+            ?: HomeLastCurve.DataUnavailable
+    }
+
+    internal fun openLastCurve(ready: HomeLastCurve.Ready, reference: HomeLastCurve.Reference) {
+        if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
+        revokeShortcutStart()
+        if (lastCurveReference() != reference || resolveLastCurve(reference) != ready) return
+        // Slot 7 re-resolves the committed selection in the fragment and service.
+        if (!getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", ready.item.id).commit()) {
+            Toast.makeText(this, R.string.task_brew_usage_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        launchHomeCurve(7, PresetSlots.Route.Ready(ready.item.id, 7, true)) {
+            lastCurveReference() == reference && resolveLastCurve(reference) == ready
+        }
+    }
+
+    /** Shared one-tap path: the source must remain the exact curve/history reference tapped. */
+    private fun launchHomeCurve(sourceSlot: Int, route: PresetSlots.Route.Ready, sourceValid: () -> Boolean) {
+        val requestedAt = MobileMonotonicClock.elapsedRealtime()
+        val owner = service
+        val library = (application as MobileApplication).curves
+        val expected = owner?.let { library.resolve(route.curveId, it.snapshot.scaleState == DeviceState.READY, route.wireSlot) }
+        val expectedItem = library.find(route.curveId)
+        val app = application as MobileApplication
+        val curveRevision = app.customCurvesResult.getOrNull()?.revision
+        val configurationRevision = owner?.shortcutConfigurationRevision
+        val settings = owner?.snapshot?.settings
+        val device = owner?.shortcutDeviceIdentity
+        val preference = shortcutPreferences.read()
+        val preferenceRevision = shortcutPreferences.revision
+        showExtraction(sourceSlot)
+        if (!preference.startsOnTap) return
+        val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
+        if (owner == null || expected == null) {
+            Toast.makeText(this, if (owner == null) R.string.service_unavailable else R.string.extraction_choose_startable, Toast.LENGTH_LONG).show()
+            return
+        }
+        val permit = ShortcutStartPermit(requestedAt, MobileMonotonicClock::elapsedRealtime) {
+            foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                !supportFragmentManager.isStateSaved && extractionVisible &&
+                supportFragmentManager.primaryNavigationFragment === fragment && fragment.shortcutStartVisible &&
+                service === owner && owner.running && owner.shortcutDeviceIdentity == device &&
+                device != null && owner.snapshot.settings == settings &&
+                owner.shortcutConfigurationRevision == configurationRevision &&
+                app.customCurvesResult.getOrNull()?.revision == curveRevision &&
+                preference.startsOnTap && shortcutPreferences.read() == preference &&
+                shortcutPreferences.revision == preferenceRevision &&
+                sourceValid() &&
+                (route.wireSlot != 7 || getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null) == route.curveId) &&
+                library.resolve(route.curveId, owner.snapshot.scaleState == DeviceState.READY, route.wireSlot) == expected &&
+                library.find(route.curveId) == expectedItem && library.validated(expected) &&
+                owner.studioStartBlock(expected) == null
+        }
+        shortcutStart = permit
+        fragment.tryShortcutStart(expected, permit)
+    }
+
     fun showExtraction(slot: Int = 7) {
+        revokeShortcutStart()
+        val wireSlot = routeShortcut(slot) ?: return
         if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
         destination = TaskDestination.BREW
-        extractionSlot = slot
+        extractionSlot = wireSlot
         extractionVisible = true
         showCurrent()
     }
 
     private fun showCurrent() {
+        if (PersonalUpdateChannel.officialUpdatesAllowed(packageName)) {
+            (application as MobileApplication).releaseUpdates.interruptInstallLease()
+        }
         if (supportFragmentManager.isStateSaved) { pendingShow = true; return }
         pendingShow = false
         val chosen = if (extractionVisible) "extraction" else tag(destination)
@@ -362,6 +503,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        revokeShortcutStart()
         outState.putString("extractionOrigin",extractionOrigin?.name)
         outState.putString("settingsOrigin",settingsOrigin?.name)
         outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
@@ -396,6 +538,7 @@ class MainActivity : ThemedActivity() {
     }
 
     private fun navigateBack() {
+        revokeShortcutStart()
         val current = supportFragmentManager.primaryNavigationFragment
         val consumed = when (current) {
             is CurveFragment -> current.consumeBack()

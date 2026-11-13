@@ -183,13 +183,12 @@ class HistoryActivity : ThemedActivity() {
                 } else null
                 views.day.text = day
                 views.day.visibility = if (day != previousDay) View.VISIBLE else View.GONE
-                val library = runCatching { (application as MobileApplication).curves }.getOrNull()
                 views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
-                    else library?.find(entry.curveId)?.name ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
+                    else (application as MobileApplication).historicalCurveName(entry.curveId) ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
                 views.status.text = status(entry.status)
                 views.status.setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
                 val metadata = listOf(date(entry.startedAtMs),
-                    entry.elapsedMs?.let { getString(R.string.history_meta_duration, "%.1f".format(Locale.ROOT, it / 1000.0)) },
+                    shotTimingSummary(entry),
                     entry.weightHundredthsGram?.let { getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0)) },
                     entry.slot?.takeIf { it in 1..5 }?.let { getString(R.string.extraction_slot_suffix, it.toString()) })
                 views.chunks.forEachIndexed { index, view ->

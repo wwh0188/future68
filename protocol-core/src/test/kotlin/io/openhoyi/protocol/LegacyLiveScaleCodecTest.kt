@@ -38,6 +38,53 @@ fun legacyLiveScaleChecks() {
     check(DiFluidCodec.tare().frame.hex() == "DFDF03020101C5")
     check(FelicitaLiveCodec.tare().frame.hex() == "54")
 
+    val zeroFrame = hex("EFDD0C08050000000002000A05")
+    for (split in 1 until zeroFrame.size) {
+        val decoder = AcaiaStreamDecoder()
+        check(decoder.feed(zeroFrame.copyOf(split)).isEmpty())
+        check(decoder.feed(zeroFrame.copyOfRange(split, zeroFrame.size)).single() is DecodeResult.Valid)
+    }
+    for (restartSplit in listOf(1, 6, zeroFrame.size)) {
+        val decoder = AcaiaStreamDecoder()
+        check(decoder.feed(zeroFrame.copyOf(6)).isEmpty())
+        val results = decoder.feed(zeroFrame.copyOf(restartSplit)) +
+            decoder.feed(zeroFrame.copyOfRange(restartSplit, zeroFrame.size))
+        check(results.size == 1 && results.single() is DecodeResult.Valid)
+    }
+    val embeddedHeader = hex("EFDD0C0805EFDD00000200F9E2")
+    val embeddedDecoder = AcaiaStreamDecoder()
+    check(embeddedDecoder.feed(embeddedHeader.copyOf(5)).isEmpty())
+    check(embeddedDecoder.feed(embeddedHeader.copyOfRange(5,embeddedHeader.size)).single() is DecodeResult.Valid)
+    // Independently constructed public-layout notifications. The first notification
+    // ends with an abandoned six-byte sensor prefix; the next starts a full new frame.
+    val responseAndPartial=dFrame(3,2,byteArrayOf(2))+dWeight(37).copyOf(6)
+    val restartedZero=dWeight(0)
+    var resyncs=0
+    val restartStream=DiFluidStreamDecoder { resyncs++ }
+    check(restartStream.feed(responseAndPartial).all { it is DecodeResult.Unknown })
+    val restartResult=restartStream.feed(restartedZero)
+    check(resyncs==1)
+    check(restartResult.size==1 && (restartResult.single() as DecodeResult.Valid).value is DiFluidWeight)
+    check(((restartResult.single() as DecodeResult.Valid).value as DiFluidWeight).hundredths==0)
+    for(split in 1 until restartedZero.size) {
+        val stream=DiFluidStreamDecoder()
+        check(stream.feed(restartedZero.copyOfRange(0,split)).isEmpty())
+        val output=stream.feed(restartedZero.copyOfRange(split,restartedZero.size))
+        check(output.size==1 && (output.single() as DecodeResult.Valid).value is DiFluidWeight)
+    }
+    // A new boundary is not sufficient without a valid checksum.
+    val badZero=restartedZero.copyOf().apply {this[lastIndex]=(this[lastIndex].toInt() xor 1).toByte()}
+    val badStream=DiFluidStreamDecoder();badStream.feed(responseAndPartial)
+    check(badStream.feed(badZero).any {it is DecodeResult.Invalid})
+    check(DiFluidStreamDecoder().feed(badZero+restartedZero).any {it is DecodeResult.Invalid})
+    // Valid original continuation wins, even if a payload begins with a complete frame.
+    val nested=dFrame(9,9,restartedZero)
+    val nestedStream=DiFluidStreamDecoder();check(nestedStream.feed(nested.copyOfRange(0,5)).isEmpty())
+    val nestedResult=nestedStream.feed(nested.copyOfRange(5,nested.size))
+    check(nestedResult.size==1 && nestedResult.single() is DecodeResult.Unknown)
+    val invalidSemantic=dFrame(3,0,restartedZero)
+    val semanticStream=DiFluidStreamDecoder();semanticStream.feed(invalidSemantic.copyOfRange(0,5))
+    check(semanticStream.feed(invalidSemantic.copyOfRange(5,invalidSemantic.size)).any {it is DecodeResult.Invalid})
     val positive = hex("EFDD0C08053930000002004335")
     val negative = hex("EFDD0C08053930000002024337")
     // Constructed fixture, not a scale capture: length=12, weight=23.2 in the current unit,

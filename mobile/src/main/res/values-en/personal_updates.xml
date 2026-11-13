@@ -1,0 +1,5 @@
+<resources>
+    <string name="personal_update_title">Personal build updates</string>
+    <string name="personal_update_body">Update this personal build through GitHub. Open the downloads page, sign in, then download and install the APK over your current personal build.</string>
+    <string name="personal_update_open">Open GitHub downloads</string>
+</resources>

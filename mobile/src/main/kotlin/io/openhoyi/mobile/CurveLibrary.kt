@@ -15,7 +15,8 @@ data class CurveLibraryItem(
 
 class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null,
                    private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() },
-                   private val enableCustomPressureExecution:Boolean=false) {
+                   private val enableCustomPressureExecution:Boolean=false,
+                   val presetBinding: (Int, String?) -> String? = { _, stored -> stored }) {
     fun permitsCustomPressureStart(selectedId:String?,parameters:io.openhoyi.protocol.StartParameters):Boolean {
         if(selectedId == null || !selectedId.startsWith("draft-") || parameters.slot != 7 ||
             !io.openhoyi.protocol.CustomPressureStartPolicy.permits(parameters))return false
@@ -26,6 +27,9 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
             !io.openhoyi.protocol.CustomCurveStartPolicy.permits(parameters)) return false
         return listOf(false, true).any { resolve(selectedId, it)?.parameters == parameters }
     }
+    /** Compatibility entry point; execution keeps the personal recipe policy and exact adapter. */
+    fun permitsCustomStart(selectedId: String?, parameters: io.openhoyi.protocol.StartParameters): Boolean =
+        permitsCustomCurveStart(selectedId, parameters)
     val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
     private val verifiedItems: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         factory.map { curve ->
