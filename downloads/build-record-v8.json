@@ -1,0 +1,193 @@
+{
+  "applicationName": "OpenHOYI 77 扩展",
+  "packageName": "io.openhoyi.mobile.personal",
+  "versionCode": 112,
+  "versionName": "0.2.0-personal.8",
+  "signerCertificateSha256": "4ad87267785cadb93d961dba472586bfd53dde2e8dd2ffa7d939b4a6af7d060f",
+  "apkSha256": "818e7db15b18cb159448caa7a1a9b649e559f053cb42c023473794ebee4ffb6b",
+  "apkBytes": 18822022,
+  "sourceBase": "69e31001d689f659a00055b121f86b574955f353",
+  "sourceCommit": "f4894e65a0ea7661bcdfc4ecbacba6dc334f9d82",
+  "sourceCommitVerified": false,
+  "referenceTag": "dev-111",
+  "referenceSourceCommit": "0d64b9af1008554efc1c0faffa9ea6d220ca6c5c",
+  "referenceApkSha256": "316952d4fad1a860b0db28ab2ca2c06aded4183de96be2f0977c6690b0554ccb",
+  "referenceApkBytes": 17521619,
+  "referenceMetadataFromReleaseApi": true,
+  "referenceApkDownloaded": false,
+  "referenceSourceCommitVerified": false,
+  "deliveryChannel": "private GitHub repository only",
+  "personalTestBuild": true,
+  "debuggable": true,
+  "signatureVerified": true,
+  "mockMode": false,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "changes": [
+    "Explicit studio curve-use automatic temperature preparation and single safe leave cancellation without reconnect replay",
+    "Exact firmware 1.1.3 stored-lever support under existing gates; unreviewed FLOW still only 1.1.4/1.1.5",
+    "Independent small/medium/large typography and focused draft/selection/scroll preservation across configuration changes",
+    "Near-square home proportions and chart multi-selection including display-only confirmed/estimated beverage weight",
+    "Optional hash-bound beverage sample sidecar, coordinate gaps and physical-zero display-estimator fix",
+    "Preserve private schemas/notes/compensation/inactive stages, ART and control gates, and GitHub-only update isolation"
+  ],
+  "checks": [
+    "protocol-core:check",
+    "device-session:check",
+    "bluetooth-android:testDebugUnitTest",
+    "mobile:testDebugUnitTest",
+    "mobile:assemblePersonal",
+    "mobile:lintDebug",
+    "app:compileDebugKotlin",
+    "mobile:compileMockAndroidTestKotlin",
+    "exact default/English APK resource verification",
+    "compiled APK MOCK_MODE=false",
+    "same certificate and increasing version compared with personal V1/V2/V3/V4/V5/V6/V7",
+    "localization catalog integrity, generated-resource drift checks and 25 Python tests",
+    "independent Astra design and final read-only review",
+    "actual personal APK has no REQUEST_INSTALL_PACKAGES permission"
+  ],
+  "gradleResult": "BUILD SUCCESSFUL",
+  "junit": {
+    "device-session": {
+      "tests": 807,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 724,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "bluetooth-android": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "Warning": 502
+  },
+  "localization": {
+    "matchedStrings": 3310,
+    "personalBrandOverridesVerified": true
+  },
+  "upgrade": {
+    "previousVersionCodes": [
+      78,
+      79,
+      80,
+      83,
+      85,
+      87,
+      105
+    ],
+    "previousApkSha256": [
+      "2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f",
+      "3abc3fc20052f057a769741ac5532254951d5719c5e952c0a6d917653d791a85",
+      "5d707b852938de14a626ff4de152b0ce9a27a9058e4ed5ed0b64f21764a3a27c",
+      "d5ceece547196d2737b697c91c24bb90d9df3c692e35fcf392482119f0bfb2e5",
+      "90b65e61462f8d2c5eba70a03f5c9666e3a0ea843d0b1606b61e0e0f98a8398f",
+      "82f186fddd01f09c6de4dca25478b0e3dbedbc5299590fa979a93bbeb3307844",
+      "45f07347467159b4d4da85c23d26c73891f8e76f42f07becdfb247ea92e887a9"
+    ],
+    "identityAndVersionCompatible": true,
+    "installationVerified": false,
+    "dataPreservationVerified": false
+  },
+  "curveCompatibility": {
+    "readsPersonalSchemas": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "legacyChecksumAndDefaultFingerprintPreserved": true,
+    "upstreamConfigurationSchema3Imported": false,
+    "readsStoreWrapperVersions": [
+      1,
+      2
+    ],
+    "archiveAndUndoPreservePersonalFields": true
+  },
+  "preinfusion": {
+    "minimumFlowMlPerSecond": 1,
+    "timedFirstStageVolumeMl": 0,
+    "requiresPositiveFirstStageDuration": true,
+    "zeroBarGuaranteed": false,
+    "independentPressureCeilingAvailable": false
+  },
+  "instrumentationCompiled": true,
+  "instrumentationExecuted": false,
+  "hardwareVerified": false,
+  "screenVerified": false,
+  "installed": false,
+  "upstreamPublished": false,
+  "referenceOrVendorApkIncluded": false,
+  "rawUserDiagnosticsIncluded": false,
+  "protocolCoreVerification": {
+    "checksPassed": 39862,
+    "capturedNotificationsReplayed": 32856
+  },
+  "referenceReleases": [
+    {
+      "tag": "dev-111",
+      "sourceCommit": "0d64b9af1008554efc1c0faffa9ea6d220ca6c5c",
+      "apkSha256": "316952d4fad1a860b0db28ab2ca2c06aded4183de96be2f0977c6690b0554ccb",
+      "apkBytes": 17521619,
+      "apkDownloaded": false
+    }
+  ],
+  "scalePermissions": {
+    "additionalAutomaticControlGranted": false,
+    "lunarApAutomaticControlExpanded": false,
+    "felicitaArtBehaviorPreserved": true
+  },
+  "syntheticRegressionFixtures": true,
+  "personalUpdateChannel": {
+    "mode": "GitHub browser only",
+    "officialIndexEnabled": false,
+    "officialAutomaticUpdatesEnabled": false,
+    "officialApkDownloadEnabled": false,
+    "requestInstallPackagesPermission": false,
+    "embeddedPrivateRepoCredentials": false
+  },
+  "storedLeverRecipe": {
+    "transportSuccessConfirmsPersistence": false,
+    "hardwarePersistenceVerified": false,
+    "exactFirmwareProfiles": [
+      "1.1.3",
+      "1.1.4",
+      "1.1.5"
+    ],
+    "firmware113PersistenceVerified": false
+  },
+  "beverageWeight": {
+    "displayRecordingOnly": true,
+    "estimatedWeightControlsStopping": false,
+    "confirmedAndEstimatedDistinguished": true,
+    "rawSampleFormatPreserved": true,
+    "optionalHashBoundSidecar": true,
+    "coordinateChangeGapsAndPhysicalZeroRegression": true
+  },
+  "fontSize": {
+    "independentOfSystem": true,
+    "default": "medium",
+    "scales": {
+      "small": 0.9,
+      "medium": 1.0,
+      "large": 1.1
+    },
+    "deviceRenderingVerified": false
+  },
+  "autoPreheat": {
+    "explicitStudioCurveUseIntent": true,
+    "safeLeaveCancellationAttempts": 1,
+    "reconnectCancellationReplay": false,
+    "temperatureReadyStartsExtractionAutomatically": false,
+    "hardwareVerified": false
+  }
+}
