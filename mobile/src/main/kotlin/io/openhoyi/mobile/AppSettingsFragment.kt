@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.Switch
@@ -62,6 +63,7 @@ class AppSettingsFragment : Fragment() {
     private var updateCard: ReleaseUpdateCard? = null
     private var personalUpdateCard: PersonalUpdateCard? = null
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
+    private var fontSizeCard: AppFontSizePreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
     private var exportStatus: TextView? = null
     private var exportGeneration = 0L
@@ -234,23 +236,36 @@ class AppSettingsFragment : Fragment() {
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
+        fontSizeCard = AppFontSizePreferencesCard(activity, theme, visual) { activity.recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
         val info = sections.getValue("about")
-        fun infoRow(key: String, label: Int, value: String) {
-            if (info.childCount > 0) settingsDivider(activity, info, visual)
-            val pair = visual.pair(
-                style.text(getString(label), TaskProductVisualStyle.auxiliary, "product/settings/app/info/$key/label", true),
-                style.text(value, TaskProductVisualStyle.body, "product/settings/app/info/$key/value"),
-                "product/settings/app/info/$key", false)
-            style.add(info, pair)
+        // Keep identity, link and updates in one aligned surface rather than floating blocks.
+        val aboutCard = style.column("product/settings/app/about/card").apply {
+            setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
+            background = style.shape(style.surface, true, 16)
         }
-        infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
-        infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
-        infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
+        style.add(info, aboutCard, 4)
+        val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
+            "product/settings/app/info/name/value")
+        val website = style.button(Button(activity)).apply {
+            text = getString(R.string.settings_project_home)
+            tag = "product/settings/app/project-home"
+            asTaskTextAction()
+            minimumHeight = style.dp(48)
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://boolean93.github.io/openhoyi/")))
+                } catch (_: android.content.ActivityNotFoundException) {
+                    android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
+        visual.divider(aboutCard)
         if (PersonalUpdateChannel.isPersonal(activity.packageName)) {
-            personalUpdateCard = PersonalUpdateCard(activity, info, visual)
+            personalUpdateCard = PersonalUpdateCard(activity, aboutCard, visual)
         } else if (PersonalUpdateChannel.officialUpdatesAllowed(activity.packageName)) {
-            updateCard = ReleaseUpdateCard(activity, info, visual)
+            updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
         }
         val diagnostics = sections.getValue("maintenance")
         diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
@@ -284,7 +299,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.removeCallbacks(refreshCapabilities)
         deviceControls?.close()
         machineControls?.stop()
-        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
+        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
         updateCard?.pause(); personalUpdateCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
@@ -296,13 +311,13 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onDestroyView() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
-        feedbackCard?.stop(); languageCard?.close()
+        feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }
         shortcutToggle = null; shortcutError = null; shortcutRetry = null
         document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
-        feedbackCard = null; languageCard = null; exportStatus = null
+        feedbackCard = null; languageCard = null; fontSizeCard = null; exportStatus = null
         updateCard?.close(); updateCard = null
         personalUpdateCard?.close(); personalUpdateCard = null
         super.onDestroyView()

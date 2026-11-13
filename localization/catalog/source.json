@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "2b3e59252b4349fe6f15d0f2c9d38d3434d414adfce8992b97f5b7e17d906483",
+  "sha256": "792e8a28179033861ad94309c5fc945b06321ee4167e39548084e51c3a050cf3",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1024,6 +1024,26 @@
     "update_failed": "检查失败，无法确认公开版本。请检查网络后重试。",
     "update_mock_preview": "公开测试版：%1$s（%2$d）。这是独立主包，不会覆盖当前 Mock 演示版。",
     "update_cancel_download": "取消",
-    "update_same_version": "当前版本与公开测试版一致：%1$s（%2$d）。"
+    "update_same_version": "当前版本与公开测试版一致：%1$s（%2$d）。",
+    "service_auto_target_unsupported": "当前固件不支持此预热目标",
+    "auto_preheat_cooling": "等待降温",
+    "auto_preheat_dismiss": "关闭提示",
+    "auto_preheat_unknown": "预热结果未知",
+    "service_auto_cancel_blocked": "取消未发送：%1$s",
+    "service_auto_boiler_off": "锅炉加热已关闭，请开启后重新使用曲线",
+    "service_auto_temperature_waiting": "正在获取温度，请稍后重新使用曲线",
+    "service_auto_request_blocked": "预热未开始：%1$s",
+    "auto_preheat_disconnected": "设备已断连",
+    "auto_preheat_cancelling": "正在发送取消请求",
+    "service_auto_cancel_requested": "已请求取消，请核对机器",
+    "auto_preheat_sending": "正在发送预热请求",
+    "auto_preheat_temperature_missing": "正在获取温度",
+    "auto_preheat_not_ready": "温度未达标",
+    "service_auto_cancel_not_sent": "未发送取消，请核对机器状态",
+    "auto_preheat_failed": "预热请求失败",
+    "auto_preheat_waiting": "命令已写入 · 等待温度",
+    "auto_preheat_target_changed": "曲线已变 · 请先核对预热",
+    "auto_preheat_cancel_written": "取消已写入 · 请核对机器",
+    "auto_preheat_heating": "温度准备"
   }
 }

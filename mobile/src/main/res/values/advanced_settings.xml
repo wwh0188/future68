@@ -16,4 +16,6 @@
     <string name="settings_info_mode">版本描述</string>
     <string name="settings_info_package">包名</string>
     <string name="settings_info_version_value">%1$s (%2$d)</string>
+    <string name="settings_project_home">项目主页 ↗</string>
+    <string name="settings_project_open_failed">没有可打开网页的浏览器</string>
 </resources>

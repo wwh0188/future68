@@ -18,11 +18,11 @@ class StoredLeverRecipeWriteTest {
         val recipeWrites get()=calls.mapNotNull {it.third as? GattOperation.Write}
             .filter {it.bytes.firstOrNull()?.toInt()==8}
     }
-    private inner class Fixture(firmware:Int=0x14) {
+    private inner class Fixture(firmware:Int=0x13) {
         val driver=Driver();var now=0L
         val session=DeviceSession(DeviceRole.COFFEE,driver,{now})
         init { connect(firmware) }
-        fun connect(firmware:Int=0x14,address:String="coffee") {
+        fun connect(firmware:Int=0x13,address:String="coffee") {
             session.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,11,12,10,0),"123456"))
             complete()
             complete(OperationResult.Success(listOf(
@@ -47,7 +47,7 @@ class StoredLeverRecipeWriteTest {
         fun write(guard:()->Boolean={true},done:(OperationResult)->Unit)=session.writeStoredLeverRecipe(recipe,guard,done)
     }
     @Test fun supportedFirmwareAcceptsUnselectedCustomRecipeAndSuccessOnlyReportsTransport() {
-        for(firmware in listOf(0x14,0x15)) {
+        for(firmware in listOf(0x13,0x14,0x15)) {
             val f=Fixture(firmware);var result:OperationResult?=null
             f.write {result=it}
             assertEquals(1,f.driver.recipeWrites.size)
@@ -58,9 +58,9 @@ class StoredLeverRecipeWriteTest {
             assertEquals(1,f.driver.recipeWrites.size) // no readback refresh or resend
         }
     }
-    @Test fun olderFirmwareStaleAndBlockingAlarmNeverWrite() {
+    @Test fun unsupportedFirmwareStaleAndBlockingAlarmNeverWrite() {
         var result:OperationResult?=null
-        for(firmware in listOf(0x13,0x16,0x20)) {
+        for(firmware in listOf(0x12,0x16,0x20)) {
             val old=Fixture(firmware)
             old.write {result=it};assertTrue(result is OperationResult.Failed);assertTrue(old.driver.recipeWrites.isEmpty())
         }
@@ -132,7 +132,7 @@ class StoredLeverRecipeWriteTest {
         f.complete()
         f.session.refreshStoredRecipeSettings({true}) {result=it}
         assertTrue(result is OperationResult.Failed);assertEquals(before+1,f.driver.calls.size)
-        val settings=bytes("830114FD5C007D0F350019006E")
+        val settings=bytes("830113FD5C007D0F350019006E")
         settings[settings.lastIndex]=settings.dropLast(1).fold(0){a,b->a xor (b.toInt() and 255)}.toByte()
         f.receive(settings);assertNotNull(f.session.settingsObservedAtMs)
     }
@@ -158,5 +158,17 @@ class StoredLeverRecipeWriteTest {
         val f=Fixture();var result:OperationResult?=null
         f.session.writeStoredLeverRecipe(recipe.copy(target1=255),{true}) {result=it}
         assertTrue(result is OperationResult.Failed);assertTrue(f.driver.recipeWrites.isEmpty())
+    }
+    @Test fun firmware113SendsExistingBloomFrameButRejectsUnreviewedFlowCombinations() {
+        val bloom=StartParameters(true,true,3,7,92,70,false,4,20,40,22,0,200,6,400,100,0)
+        val allowed=Fixture();var result:OperationResult?=null
+        allowed.session.writeStoredLeverRecipe(bloom,{true}) {result=it}
+        assertArrayEquals(bytes("08c35c0046041428160000c806019000640000c4"),allowed.driver.recipeWrites.single().bytes)
+        allowed.complete();assertTrue(result is OperationResult.Success)
+        for(unreviewed in listOf(bloom.copy(pressureLogic=false), bloom.copy(firstSegmentFlowMode=true))) {
+            val restricted=Fixture()
+            restricted.session.writeStoredLeverRecipe(unreviewed,{true}) {result=it}
+            assertTrue(result is OperationResult.Failed);assertTrue(restricted.driver.recipeWrites.isEmpty())
+        }
     }
 }
