@@ -1,0 +1,166 @@
+{
+  "applicationName": "OpenHOYI 77 扩展",
+  "packageName": "io.openhoyi.mobile.personal",
+  "versionCode": 105,
+  "versionName": "0.2.0-personal.7",
+  "signerCertificateSha256": "4ad87267785cadb93d961dba472586bfd53dde2e8dd2ffa7d939b4a6af7d060f",
+  "apkSha256": "45f07347467159b4d4da85c23d26c73891f8e76f42f07becdfb247ea92e887a9",
+  "apkBytes": 18766818,
+  "sourceBase": "69e31001d689f659a00055b121f86b574955f353",
+  "sourceCommit": "315151e7888f8e429ac4dac6efb810b788b878ff",
+  "sourceCommitVerified": false,
+  "referenceTag": "dev-104",
+  "referenceSourceCommit": "5a765743a502ad03036a56c517fd211d2878edc5",
+  "referenceApkSha256": "5e5d5bea275dba0b0af39a561a11f2a45ddaac877f2d311b91451392f7e7b948",
+  "referenceApkBytes": 17480143,
+  "referenceMetadataFromReleaseApi": true,
+  "referenceApkDownloaded": false,
+  "referenceSourceCommitVerified": false,
+  "deliveryChannel": "private GitHub repository only",
+  "personalTestBuild": true,
+  "debuggable": true,
+  "signatureVerified": true,
+  "mockMode": false,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "changes": [
+    "Explicit one-shot stored lever recipe sends with device-scoped latest-send journal, never claiming persistence readback",
+    "Custom local shortcuts and default-off direct start with final dispatch safety checks",
+    "Per-shot proven tare baseline live yield, frozen final readout and machine/sample/record timing distinction",
+    "Atomic curve archive/delete/undo retains private schema1-4 fields and history; legacy store upgrade compatibility",
+    "Acaia/Timemore/DiFluid boundary and late device recovery, refined switches, compact layout and scan guidance",
+    "Preserve ART/readonly scale permissions, exact firmware gates, private notes/compensation/inactive stages and previous fixes",
+    "Personal updates use private GitHub browser page only; official updater blocked and install permission removed",
+    "Guard history-detail fallback when legacy history initialization fails"
+  ],
+  "checks": [
+    "protocol-core:check",
+    "device-session:check",
+    "bluetooth-android:testDebugUnitTest",
+    "mobile:testDebugUnitTest",
+    "mobile:assemblePersonal",
+    "mobile:lintDebug",
+    "app:compileDebugKotlin",
+    "mobile:compileMockAndroidTestKotlin",
+    "exact default/English APK resource verification",
+    "compiled APK MOCK_MODE=false",
+    "same certificate and increasing version compared with personal V1/V2/V3/V4/V5/V6",
+    "localization catalog integrity, generated-resource drift checks and 25 Python tests",
+    "independent Astra design and final read-only review",
+    "actual personal APK has no REQUEST_INSTALL_PACKAGES permission"
+  ],
+  "gradleResult": "BUILD SUCCESSFUL",
+  "junit": {
+    "device-session": {
+      "tests": 803,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 675,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "bluetooth-android": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "Warning": 496
+  },
+  "localization": {
+    "matchedStrings": 3232,
+    "personalBrandOverridesVerified": true
+  },
+  "upgrade": {
+    "previousVersionCodes": [
+      78,
+      79,
+      80,
+      83,
+      85,
+      87
+    ],
+    "previousApkSha256": [
+      "2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f",
+      "3abc3fc20052f057a769741ac5532254951d5719c5e952c0a6d917653d791a85",
+      "5d707b852938de14a626ff4de152b0ce9a27a9058e4ed5ed0b64f21764a3a27c",
+      "d5ceece547196d2737b697c91c24bb90d9df3c692e35fcf392482119f0bfb2e5",
+      "90b65e61462f8d2c5eba70a03f5c9666e3a0ea843d0b1606b61e0e0f98a8398f",
+      "82f186fddd01f09c6de4dca25478b0e3dbedbc5299590fa979a93bbeb3307844"
+    ],
+    "identityAndVersionCompatible": true,
+    "installationVerified": false,
+    "dataPreservationVerified": false
+  },
+  "curveCompatibility": {
+    "readsPersonalSchemas": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "legacyChecksumAndDefaultFingerprintPreserved": true,
+    "upstreamConfigurationSchema3Imported": false,
+    "readsStoreWrapperVersions": [
+      1,
+      2
+    ],
+    "archiveAndUndoPreservePersonalFields": true
+  },
+  "preinfusion": {
+    "minimumFlowMlPerSecond": 1,
+    "timedFirstStageVolumeMl": 0,
+    "requiresPositiveFirstStageDuration": true,
+    "zeroBarGuaranteed": false,
+    "independentPressureCeilingAvailable": false
+  },
+  "instrumentationCompiled": true,
+  "instrumentationExecuted": false,
+  "hardwareVerified": false,
+  "screenVerified": false,
+  "installed": false,
+  "upstreamPublished": false,
+  "referenceOrVendorApkIncluded": false,
+  "rawUserDiagnosticsIncluded": false,
+  "protocolCoreVerification": {
+    "checksPassed": 39862,
+    "capturedNotificationsReplayed": 32856
+  },
+  "referenceReleases": [
+    {
+      "tag": "dev-104",
+      "sourceCommit": "5a765743a502ad03036a56c517fd211d2878edc5",
+      "apkSha256": "5e5d5bea275dba0b0af39a561a11f2a45ddaac877f2d311b91451392f7e7b948",
+      "apkBytes": 17480143,
+      "apkDownloaded": false
+    }
+  ],
+  "newerReleaseWithNoAppChanges": {
+    "tag": "dev-105",
+    "sourceCommit": "e6440ed6ac7f4979295dc09665d8807b11d97f64"
+  },
+  "scalePermissions": {
+    "additionalAutomaticControlGranted": false,
+    "lunarApAutomaticControlExpanded": false,
+    "felicitaArtBehaviorPreserved": true
+  },
+  "syntheticRegressionFixtures": true,
+  "personalUpdateChannel": {
+    "mode": "GitHub browser only",
+    "officialIndexEnabled": false,
+    "officialAutomaticUpdatesEnabled": false,
+    "officialApkDownloadEnabled": false,
+    "requestInstallPackagesPermission": false,
+    "embeddedPrivateRepoCredentials": false
+  },
+  "storedLeverRecipe": {
+    "transportSuccessConfirmsPersistence": false,
+    "hardwarePersistenceVerified": false
+  }
+}
