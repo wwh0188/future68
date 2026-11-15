@@ -1,0 +1,268 @@
+{
+  "applicationName": "OpenHOYI 77 扩展",
+  "packageName": "io.openhoyi.mobile.personal",
+  "versionCode": 128,
+  "versionName": "0.2.0-personal.9",
+  "signerCertificateSha256": "4ad87267785cadb93d961dba472586bfd53dde2e8dd2ffa7d939b4a6af7d060f",
+  "apkSha256": "da9c46fcef0f25b7d91ea040ad2f76c0a1379ab91cc2c76ad4f3f778732478a9",
+  "apkBytes": 18912766,
+  "sourceBase": "69e31001d689f659a00055b121f86b574955f353",
+  "sourceCommit": "3f45e58f5853284cfd7042d7e0bad9a2f3cdef78",
+  "sourceCommitVerified": false,
+  "referenceTag": "dev-127",
+  "referenceSourceCommit": "fc309bc792218b6a01feeb6f780bb979cc99c42d",
+  "referenceApkSha256": "b490a3f09813bda550c51a5656f3c3d3bfd837195cfe7dd0bcc74788c1926fa3",
+  "referenceApkBytes": 17578971,
+  "referenceMetadataFromReleaseApi": true,
+  "referenceApkDownloaded": false,
+  "referenceSourceCommitVerified": false,
+  "deliveryChannel": "private GitHub repository only",
+  "personalTestBuild": true,
+  "debuggable": true,
+  "signatureVerified": true,
+  "mockMode": false,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "changes": [
+    "Cumulative dev111 to dev127 alignment, with dev117 and dev123 intermediate changes retained and independently reviewed",
+    "Compact curve editor with live preview, per-card modes and save-as-new behavior preserving private notes, compensation, hidden slots and raw inputs",
+    "Custom curve filtering, home segmented modes and next-recipe labels while retaining target progress and stopping explanations",
+    "Exact firmware 1.1.3/1.1.4/1.1.5 complete-mode support under owner, firmware-integer, parameter and dispatch guards",
+    "Budgeted stale-settings recovery and mode readback without replaying controls or clearing unknown results",
+    "Diagnostic identity, lossless gzip, 8 MiB and 7 day retention, serialized diagnostic-only cleanup, optional fixed chart axes",
+    "Private schema4 screenshot import prompt with production-parser example checks",
+    "GitHub-only private updater isolation, default-disabled generic accelerator, removal of Gitee transport and exact Mock runner contract"
+  ],
+  "checks": [
+    "protocol-core:check",
+    "device-session:check",
+    "bluetooth-android:testDebugUnitTest",
+    "trace-core:check",
+    "app:testDebugUnitTest",
+    "mobile:testDebugUnitTest",
+    "mobile:assemblePersonal",
+    "mobile:lintDebug",
+    "app:compileDebugKotlin",
+    "mobile:compileMockAndroidTestKotlin",
+    "exact default/English compiled APK resource verification",
+    "compiled APK MOCK_MODE=false and RELEASE_ACCELERATED_ENABLED=false",
+    "same certificate and increasing version compared with personal V1 through V8",
+    "actual APK has no REQUEST_INSTALL_PACKAGES permission",
+    "localization integrity and generated-resource drift; 25 localization Python tests",
+    "36 Mock runner Python tests and dedicated shell syntax check; 20 upstream product-page tests",
+    "independent Astra read-only review specified through the collaboration tool",
+    "private prompt examples checked through actual private parser and execution adapter"
+  ],
+  "gradleResult": "BUILD SUCCESSFUL",
+  "junit": {
+    "device-session": {
+      "tests": 831,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 790,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "bluetooth-android": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "Warning": 551
+  },
+  "localization": {
+    "matchedStrings": 3534,
+    "personalBrandOverridesVerified": true
+  },
+  "upgrade": {
+    "previousVersionCodes": [
+      78,
+      79,
+      80,
+      83,
+      85,
+      87,
+      105,
+      112
+    ],
+    "previousApkSha256": [
+      "2b2b0c14a6ce2490a9b37f63c9552a692cd1623a4e99ddebd274f6584729687f",
+      "3abc3fc20052f057a769741ac5532254951d5719c5e952c0a6d917653d791a85",
+      "5d707b852938de14a626ff4de152b0ce9a27a9058e4ed5ed0b64f21764a3a27c",
+      "d5ceece547196d2737b697c91c24bb90d9df3c692e35fcf392482119f0bfb2e5",
+      "90b65e61462f8d2c5eba70a03f5c9666e3a0ea843d0b1606b61e0e0f98a8398f",
+      "82f186fddd01f09c6de4dca25478b0e3dbedbc5299590fa979a93bbeb3307844",
+      "45f07347467159b4d4da85c23d26c73891f8e76f42f07becdfb247ea92e887a9",
+      "818e7db15b18cb159448caa7a1a9b649e559f053cb42c023473794ebee4ffb6b"
+    ],
+    "identityAndVersionCompatible": true,
+    "installationVerified": false,
+    "dataPreservationVerified": false
+  },
+  "curveCompatibility": {
+    "readsPersonalSchemas": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "legacyChecksumAndDefaultFingerprintPreserved": true,
+    "upstreamConfigurationSchema3Imported": false,
+    "readsStoreWrapperVersions": [
+      1,
+      2
+    ],
+    "archiveAndUndoPreservePersonalFields": true,
+    "existingCurveEditsSaveNewId": true,
+    "invalidHiddenRawInputRejectsSave": true
+  },
+  "preinfusion": {
+    "minimumFlowMlPerSecond": 1,
+    "timedFirstStageVolumeMl": 0,
+    "requiresPositiveFirstStageDuration": true,
+    "zeroBarGuaranteed": false,
+    "independentPressureCeilingAvailable": false
+  },
+  "instrumentationCompiled": true,
+  "instrumentationExecuted": false,
+  "hardwareVerified": false,
+  "screenVerified": false,
+  "installed": false,
+  "upstreamPublished": false,
+  "referenceOrVendorApkIncluded": false,
+  "rawUserDiagnosticsIncluded": false,
+  "protocolCoreVerification": {
+    "checksPassed": 39862,
+    "capturedNotificationsReplayed": 32856
+  },
+  "referenceReleases": [
+    {
+      "tag": "dev-127",
+      "sourceCommit": "fc309bc792218b6a01feeb6f780bb979cc99c42d",
+      "apkSha256": "b490a3f09813bda550c51a5656f3c3d3bfd837195cfe7dd0bcc74788c1926fa3",
+      "apkBytes": 17578971,
+      "apkDownloaded": false
+    }
+  ],
+  "scalePermissions": {
+    "additionalAutomaticControlGranted": false,
+    "lunarApAutomaticControlExpanded": false,
+    "felicitaArtBehaviorPreserved": true
+  },
+  "syntheticRegressionFixtures": true,
+  "personalUpdateChannel": {
+    "mode": "GitHub browser only",
+    "officialIndexEnabled": false,
+    "officialAutomaticUpdatesEnabled": false,
+    "officialApkDownloadEnabled": false,
+    "requestInstallPackagesPermission": false,
+    "embeddedPrivateRepoCredentials": false,
+    "acceleratedIndexEnabled": false,
+    "acceleratedApkDownloadEnabled": false,
+    "giteeTransportEnabled": false
+  },
+  "storedLeverRecipe": {
+    "transportSuccessConfirmsPersistence": false,
+    "hardwarePersistenceVerified": false,
+    "exactFirmwareProfiles": [
+      "1.1.3",
+      "1.1.4",
+      "1.1.5"
+    ],
+    "firmware113PersistenceVerified": false,
+    "completeModesSupportedByClient": true,
+    "supportEvidence": "official 1.2.6 encoder oracle and upstream #100; not physical persistence acceptance"
+  },
+  "beverageWeight": {
+    "displayRecordingOnly": true,
+    "estimatedWeightControlsStopping": false,
+    "confirmedAndEstimatedDistinguished": true,
+    "rawSampleFormatPreserved": true,
+    "optionalHashBoundSidecar": true,
+    "coordinateChangeGapsAndPhysicalZeroRegression": true
+  },
+  "fontSize": {
+    "independentOfSystem": true,
+    "default": "medium",
+    "scales": {
+      "small": 0.9,
+      "medium": 1.0,
+      "large": 1.1
+    },
+    "deviceRenderingVerified": false
+  },
+  "autoPreheat": {
+    "explicitStudioCurveUseIntent": true,
+    "safeLeaveCancellationAttempts": 1,
+    "reconnectCancellationReplay": false,
+    "temperatureReadyStartsExtractionAutomatically": false,
+    "hardwareVerified": false
+  },
+  "shortcutStart": {
+    "defaultWhenPreferenceMissing": true,
+    "explicitDisabledPreferencePreserved": true,
+    "entryInSettings": true,
+    "preflightAndTemperatureGatesPreserved": true
+  },
+  "fixedChartAxes": {
+    "defaultEnabled": false,
+    "underlyingSamplesPreserved": true,
+    "overflowNotice": true
+  },
+  "diagnosticStorage": {
+    "losslessGzip": true,
+    "maxBytes": 8388608,
+    "retentionDays": 7,
+    "cleanupScope": "owned diagnostic segments only, serialized with writes and exports",
+    "oldLogsRelabelled": false
+  },
+  "settingsRecovery": {
+    "singleFlight": true,
+    "boundedBudget": true,
+    "requiresActualSettingsAndTransportCompletion": true,
+    "replaysControls": false,
+    "clearsUnknownResults": false,
+    "modeReadbackReconnectAllowed": false
+  },
+  "siteReference": {
+    "synchronizedFrom": "dev-127",
+    "deployed": false,
+    "upstreamMockScreenshotsArePersonalAcceptance": false
+  },
+  "buildEnvironment": {
+    "gradleMaxHeapMiB": 4096,
+    "earlierLowHeapAttemptStopped": true,
+    "concurrentGradleBuilds": false
+  },
+  "alignment": {
+    "deliveredBaseline": "personal V8 / dev111",
+    "intermediateTargets": [
+      "dev-117",
+      "dev-123"
+    ],
+    "finalTarget": "dev-127",
+    "intermediatePackagesDelivered": false,
+    "privateDifferencesDocumented": "docs/evidence/personal-dev127-audit.md"
+  },
+  "curveImportPrompt": {
+    "schema": 4,
+    "flattenedPrivateFormat": true,
+    "productionParserExamplesChecked": true,
+    "fileName": "OpenHOYI-77-Personal-v9-curve-import-prompt.zh-CN.txt",
+    "sha256": "bbf667dabb2de0ce5bb6727d77e5a4e20898bb28549de7c5bdbb01a90e117399",
+    "bytes": 5904
+  }
+}
