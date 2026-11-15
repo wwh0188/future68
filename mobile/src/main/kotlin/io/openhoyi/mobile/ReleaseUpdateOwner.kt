@@ -22,10 +22,7 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
     private val prefs = app.getSharedPreferences("release_updates", Context.MODE_PRIVATE)
     private val channelPermitted = PersonalUpdateChannel.officialUpdatesAllowed(app.packageName)
     private val installedIdentity = installedUpdateIdentity(app)
-    private val automaticEligible = channelPermitted && installedIdentity?.let {
-        it.packageName == "io.openhoyi.mobile" && !it.debuggable && it.versionCode > 0 &&
-            it.signerSha256?.matches(Regex("[0-9a-f]{64}")) == true
-    } == true
+    private val automaticEligible = channelPermitted && releaseAutomaticCheckEligible(installedIdentity)
     val coordinator = ReleaseUpdateCoordinator(object : ReleaseUpdateCoordinator.Storage {
         override fun read() = ReleaseUpdateCoordinator.Saved(prefs.getBoolean("enabled", true),
             prefs.getLong("nextAutoAt", 0), prefs.getLong("limitedUntil", 0),
@@ -59,7 +56,10 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
             result(Result.failure(IllegalStateException("Personal updates use the GitHub download page")))
             return {}
         }
-        val call = ReleaseUpdateHttpCall()
+        val call = ReleaseUpdateHttpCall(installedVersionCode = installedIdentity?.versionCode,
+            installedSignerSha256 = installedIdentity?.signerSha256, acceleratedEnabled = BuildConfig.RELEASE_ACCELERATED_ENABLED, diagnostic = { event ->
+            runCatching { app.logs.record("update.transfer", event.fields()) }
+        })
         var finished = false // Main-thread callbacks own this lease; the worker only posts a value.
         var future: java.util.concurrent.Future<*>? = null
         val timeout = Runnable {
@@ -104,7 +104,8 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
             coordinator.dismiss(update); hide()
             progressOwner = java.lang.ref.WeakReference(activity)
             progressPage = java.lang.ref.WeakReference((activity as? FragmentActivity)?.supportFragmentManager?.primaryNavigationFragment ?: activity)
-            progressSuppressed = false
+            // Settings already observes the same controller through its inline update card.
+            progressSuppressed = progressPage?.get() is AppSettingsFragment
         }
         return started
     }
@@ -137,7 +138,7 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
 
         }
         // Poll machine state only while an undismissed, eligible update awaits safe presentation.
-        // Off/Mock/Debug owners wake only for lifecycle or explicit user events.
+        // Off/Mock/non-local Debug owners wake only for lifecycle or explicit user events.
         when {
             downloads.needsSafetyWatch || potential != null -> handler.postDelayed(tick, 250L)
             automaticEligible && coordinator.enabled -> handler.postDelayed(tick,
@@ -151,11 +152,15 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
     private fun renderProgress(activity: Activity) {
         if (progressSuppressed) return
         val page = (activity as? FragmentActivity)?.supportFragmentManager?.primaryNavigationFragment ?: activity
-        if (progressOwner?.get() !== activity || progressPage?.get() !== page || updateBlocked()) {
+        val state = downloads.controller.state
+        if (!showReleaseDownloadProgress(
+                settingsPage = page is AppSettingsFragment,
+                suppressed = progressSuppressed,
+                sameActivity = progressOwner?.get() === activity,
+                samePage = progressPage?.get() === page,
+                blocked = updateBlocked(), phase = state.phase)) {
             hideProgress(suppress = true); return
         }
-        val state = downloads.controller.state
-        if (state.phase == ReleaseDownloadController.Phase.IDLE) { hideProgress(suppress = true); return }
         if (progressPrompt == null) {
             progressPrompt = ReleaseDownloadProgressPrompt(activity, action = {
                 val current = downloads.controller.state

@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import io.openhoyi.trace.TraceStore
+import io.openhoyi.trace.TraceAppInfo
 import java.io.File
 
 /** Process-owned writer, independent of Activity and service restarts. */
@@ -19,6 +20,7 @@ class MobileApplication : Application() {
     private lateinit var languageContext: AppLanguageContextProvider
     internal lateinit var releaseUpdates: ReleaseUpdateOwner
         private set
+    internal val diagnosticStorage by lazy { DiagnosticStorageOwner(this) }
     internal val visibility = AppVisibility()
     internal val serviceAvailability = ServiceAvailability()
     internal lateinit var autoConnect:DeviceAutoConnectOwner
@@ -71,7 +73,9 @@ class MobileApplication : Application() {
         })
     }
 
-    val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
+    val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces"), appInfo = TraceAppInfo(
+        BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), BuildConfig.BUILD_TYPE,
+    )) }
     val curves: CurveLibrary by lazy {
         val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))
         val proof = runCatching {

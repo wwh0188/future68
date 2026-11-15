@@ -269,14 +269,16 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         test.waitForIdleSync()
     }
 
-    /** Resolve every field by its actual label, and select its live visible section before access. */
-    private fun visibleInput(root: View, label: String, index: Int = 0): EditText {
+    /** Resolve labels or stable field tags, then scroll the real input completely into view. */
+    private fun visibleInput(root: View, label: String, index: Int = 0, tag: String? = null): EditText {
         lateinit var input: EditText
         var sections: Spinner? = null
         var shown = false
         var sectionCount = 0
         onMain {
-            val accessibleInput = views(root).filterIsInstance<EditText>()
+            val accessibleInput = if (tag != null) requireNotNull(root.findViewWithTag<EditText>(tag)) {
+                "Input tag not found: $tag"
+            } else views(root).filterIsInstance<EditText>()
                 .filter { it.contentDescription?.toString() == label }.getOrNull(index)
             input = accessibleInput ?: run {
                 val title = views(root).filterIsInstance<TextView>()
@@ -335,14 +337,25 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         assertInput(activity, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
         assertInput(activity, R.string.profiles_total_water_limit, totalLimit)
         onMain {
-            val count = views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
-            check(count.isShown && count.selectedCount == stages.size) { "Restored curve stage count differs" }
+            val cards = (0..3).map { index ->
+                requireNotNull(root(activity).findViewWithTag<View>("curve-editor-stage-$index"))
+            }
+            check(cards.mapIndexedNotNull { index, card -> index.takeIf { card.visibility == View.VISIBLE } } == stages.indices.toList()) {
+                "Restored curve stage count differs"
+            }
         }
         stages.forEachIndexed { index, stage ->
-            assertInput(activity, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
-            assertInput(activity, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
+            for ((key, expected) in listOf("target" to CurveDraftNumber.format(stage.target, 1),
+                "water" to CurveDraftNumber.format(stage.waterTenthsMl, 1))) {
+                val input = curveStageInput(activity, key, index)
+                onMain { check(input.text.toString() == expected) {
+                    "Restored stage field differs: $key index=$index expected=$expected actual=${input.text}"
+                } }
+            }
         }
     }
+    private fun curveStageInput(activity: Activity, key: String, index: Int): EditText =
+        visibleInput(root(activity), key, index, "product/form/curve-editor/$key-$index")
     private fun persistedBytes(name: String): ByteArray = requireNotNull(
         AtomicDocumentStorage(File(context.filesDir, name).toPath()).read()) { "Saved document missing on disk: $name" }
     private fun persistedInventory(): BeanInventory {
@@ -1013,9 +1026,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 "curve-editor" -> {
                     val id=activity.intent.getStringExtra(CurveEditorActivity.CURVE_ID)!!
                     onMain {
-                        val selector=views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
-                        listOf(1,4,1,4).forEach { count -> check(selector.findViewWithTag<Button>("curve-stage-count-$count").performClick()) }
-                        check(selector.selectedCount==4)
+                        listOf(1,4,1,4).forEach { count -> selectCurveStageCount(root(activity), count) }
+                        check(views(root(activity)).count { it.tag?.toString()?.startsWith("curve-editor-stage-") == true && it.visibility == View.VISIBLE } == 4)
                     }
                     roundTrip("editor-stage-hidden-values")
                     input("name","经典浓缩 四阶段 ".repeat(8)); capture(activity,"editor-long-name")
@@ -1029,7 +1041,15 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                     input("total-water-limit","")
                     input("target-3","")
                     capture(activity,"editor-invalid-preview")
-                    onMain { check(views(root(activity)).filterIsInstance<CurveStageView>().single().targets.isEmpty()) }
+                    onMain {
+                        val preview = views(root(activity)).filterIsInstance<CurveEditorPreviewView>().single().model
+                        check(preview.stages.size == 4 && preview.invalid)
+                        check(preview.stages[3].target == null &&
+                            preview.stages[3].targetError == CurveEditorPreview.Error.REQUIRED)
+                        check(preview.stages.take(3).all { it.target != null && it.water != null }) {
+                            "An invalid target must preserve the other stage preview values"
+                        }
+                    }
                     error("editor-invalid-number",R.string.profiles_save,R.string.profiles_invalid); input("target-3","5")
                     rejectWrites(true)
                     try { input("name","经典浓缩 调整"); error("editor-write-failed",R.string.profiles_save,R.string.profiles_save_failed) } finally { rejectWrites(false) }
@@ -1589,27 +1609,29 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             fill(editor, R.string.profiles_temperature, temperature.toString())
             fill(editor, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
             onMain {
-                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
-                check(selector.isShown && selector.isEnabled) { "Stage count selector is not visible" }
-                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
+                selectCurveStageCount(root(editor), 4)
             }
             test.waitForIdleSync()
             awaitMain {
                 (0..3).all { index -> views(root(editor)).single { it.tag == "curve-editor-stage-$index" }.isShown }
             }
             stages.forEachIndexed { index, stage ->
-                fill(editor, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
-                fill(editor, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
+                for ((key, value) in listOf("target" to CurveDraftNumber.format(stage.target, 1),
+                    "water" to CurveDraftNumber.format(stage.waterTenthsMl, 1))) {
+                    val input = curveStageInput(editor, key, index)
+                    onMain { input.setText(value); check(input.text.toString() == value) {
+                        "Stage input rejected fixture: $key index=$index"
+                    } }
+                }
             }
             fill(editor, R.string.profiles_total_water_limit, "0")
             click(editor, R.string.profiles_save)
             check(!editor.isFinishing && custom.list() == initialCurves)
             fill(editor, R.string.profiles_total_water_limit, "160")
             onMain {
-                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
-                check(selector.findViewWithTag<Button>("curve-stage-count-2").performClick())
+                selectCurveStageCount(root(editor), 2)
                 check(!views(root(editor)).single { it.tag == "curve-editor-stage-3" }.isShown)
-                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
+                selectCurveStageCount(root(editor), 4)
             }
             test.waitForIdleSync()
             assertCurveFields(editor, recipeName, temperature, cup, stages, "160")

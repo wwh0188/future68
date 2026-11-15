@@ -86,7 +86,9 @@ internal class ReleaseDownloadOwner(private val app: MobileApplication, private 
             done(Result.failure(IllegalStateException("Personal updates use the GitHub download page")))
             return {}
         }
-        val call = ReleaseApkTransfer()
+        val call = ReleaseApkDownload(verify = verifier::verify, acceleratedEnabled = BuildConfig.RELEASE_ACCELERATED_ENABLED, diagnostic = { event ->
+            runCatching { app.logs.record("update.transfer", event.fields()) }
+        })
         val target = requireNotNull(state.target)
         val destination = requireNotNull(state.file)
         val part = File(stagingDirectory, destination.name.removeSuffix(".apk") + ".part")
@@ -106,10 +108,8 @@ internal class ReleaseDownloadOwner(private val app: MobileApplication, private 
             workerStarted.set(true)
             var downloaded = false
             val result = runCatching {
-                call.download(target, part) { bytes -> handler.post { progress(bytes, false) } }
+                call.download(target, part) { bytes, verifying -> handler.post { progress(bytes, verifying) } }
                 downloaded = true
-                handler.post { progress(target.apkSize, true) }
-                verifier.verify(part, target)
                 if (Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException()
                 check(verifiedDirectory.isDirectory || verifiedDirectory.mkdirs())
                 check(!destination.exists() && part.setReadOnly())

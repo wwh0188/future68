@@ -43,6 +43,21 @@ class ReleaseUpdatePolicyTest {
         assertEquals("https://github.com/boolean93/openhoyi/releases/download/dev-94/OpenHOYI-0.2.0-dev.94.apk", index.downloadUrl)
     }
 
+    @Test fun optionalMirrorIsBoundedAndExactlyMatchesRepoVersionAndFilename() {
+        val mirror = "https://gitee.com/boolean93/openhoyi/releases/download/dev-94/OpenHOYI-0.2.0-dev.94.apk"
+        assertEquals(listOf(mirror), ReleaseUpdateIndex.parse(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(mirror)))).mirrorDownloadUrls)
+        assertTrue(ReleaseUpdateIndex.parse(fixture).mirrorDownloadUrls.isEmpty())
+        for (bad in listOf(mirror.replace("https:", "http:"), mirror + "?token=x", mirror + "#fragment",
+            mirror.replace("gitee.com", "gitee.com.evil.test"), mirror.replace("dev-94/", "dev-95/"),
+            mirror.replace("boolean93", "other"), mirror.replace(".apk", ".zip"), mirror.replace("/releases", "/%72eleases"))) {
+            rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(bad))))
+        }
+        rejects(changed("mirrorDownloadUrls", mirror))
+        rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(mirror, mirror))))
+        rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(1))))
+        rejects(changed("mirrorDownloadUrls", null))
+    }
+
     @Test fun integerFieldsRejectCoercionOverflowAndInvalidRanges() {
         for (key in listOf("schemaVersion", "versionCode", "apkSize")) {
             for (value in listOf<Any>("94", true, 94.5, 0, -1, Long.MAX_VALUE)) rejects(changed(key, value))
@@ -106,4 +121,34 @@ class ReleaseUpdatePolicyTest {
             assertEquals(ReleaseUpdateStatus.IDENTITY_UNAVAILABLE, releaseUpdateStatus(identity, update))
         }
     }
+    @Test fun personalIdentityNeverUsesOfficialUpdatesEvenWithLocalPreviewVersionName() {
+        val update = ReleaseUpdateIndex.parse(fixture)
+        for (debuggable in listOf(false, true)) for (name in listOf("0.2.0-personal.9", "0.2.0-local.dev")) {
+            val identity = InstalledUpdateIdentity("io.openhoyi.mobile.personal", 118, debuggable, "a".repeat(64), name)
+            assertFalse(releaseAutomaticCheckEligible(identity))
+            assertEquals(ReleaseUpdateStatus.IDENTITY_UNAVAILABLE, releaseUpdateStatus(identity, update))
+        }
+    }
+
+    @Test fun localDebugCanMoveToSameOrNewerDevWithoutWeakeningIdentityOrDowngradeChecks() {
+        val update = ReleaseUpdateIndex.parse(fixture)
+        val local = InstalledUpdateIdentity("io.openhoyi.mobile", 94, true, update.signerSha256,
+            "0.2.0-local.94-dev104")
+        assertEquals(ReleaseUpdateStatus.AVAILABLE, releaseUpdateStatus(local, update))
+        assertEquals(ReleaseUpdateStatus.AVAILABLE, releaseUpdateStatus(local.copy(versionCode = 93), update))
+        assertEquals(ReleaseUpdateStatus.INSTALLED_NEWER, releaseUpdateStatus(local.copy(versionCode = 95), update))
+        assertEquals(ReleaseUpdateStatus.SAME_VERSION, releaseUpdateStatus(local.copy(debuggable = false), update))
+        assertEquals(ReleaseUpdateStatus.IDENTITY_UNAVAILABLE, releaseUpdateStatus(local.copy(signerSha256 = null), update))
+        assertEquals(ReleaseUpdateStatus.SIGNATURE_MISMATCH, releaseUpdateStatus(local.copy(signerSha256 = "f".repeat(64)), update))
+        assertEquals(ReleaseUpdateStatus.MOCK_PREVIEW, releaseUpdateStatus(local.copy(packageName = "io.openhoyi.mobile.mock"), update))
+        assertTrue(releaseAutomaticCheckEligible(local))
+        assertFalse(releaseAutomaticCheckEligible(local.copy(packageName = "io.openhoyi.mobile.mock")))
+        assertFalse(releaseAutomaticCheckEligible(local.copy(signerSha256 = null)))
+        for (name in listOf(null, "", "0.2.0", "0.2.0-dev.94", "0.2.0-local.", "0.2.0-local.94\n", "local.94")) {
+            val unknown = local.copy(versionName = name)
+            assertEquals(ReleaseUpdateStatus.DEBUG_PREVIEW, releaseUpdateStatus(unknown, update))
+            assertFalse(releaseAutomaticCheckEligible(unknown))
+        }
+    }
+
 }

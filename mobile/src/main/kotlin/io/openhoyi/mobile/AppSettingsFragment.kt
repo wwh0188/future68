@@ -15,6 +15,12 @@ import androidx.fragment.app.Fragment
 
 /** The app settings tab owns its controls and listeners while the host owns its service binding. */
 class AppSettingsFragment : Fragment() {
+    companion object {
+        internal const val CURVE_IMPORT_GUIDE_URL = "https://boolean93.github.io/openhoyi/import-official-curves.html"
+        internal const val PERSONAL_CURVE_IMPORT_GUIDE_URL = "https://github.com/wwh0188/future68/blob/feature/control-modes-curve-notes/docs/personal-curve-import-guide.md"
+        internal fun curveImportGuideUrl(packageName: String): String =
+            if (PersonalUpdateChannel.isPersonal(packageName)) PERSONAL_CURVE_IMPORT_GUIDE_URL else CURVE_IMPORT_GUIDE_URL
+    }
     internal lateinit var themeCheckBox: CompoundButton
         private set
     internal lateinit var themeError: TextView
@@ -62,6 +68,7 @@ class AppSettingsFragment : Fragment() {
     }
     private var updateCard: ReleaseUpdateCard? = null
     private var personalUpdateCard: PersonalUpdateCard? = null
+    private var diagnosticStorageCard: DiagnosticStorageCard? = null
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
     private var fontSizeCard: AppFontSizePreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
@@ -133,6 +140,7 @@ class AppSettingsFragment : Fragment() {
             "schedule" to root.section("schedule", getString(R.string.settings_section_schedule)),
             "scale" to root.section("scale", getString(R.string.scale_title)),
             "shortcuts" to root.section("shortcuts", getString(R.string.shortcut_start_settings_title)),
+            "chart" to root.section("chart", getString(R.string.fixed_chart_section)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
             "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
@@ -198,6 +206,17 @@ class AppSettingsFragment : Fragment() {
         }.apply { tag = "product/settings/shortcuts/retry"; visibility = View.GONE }
         style.add(shortcutSection, style.text(getString(R.string.shortcut_start_settings_hint),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        val chartSection = sections.getValue("chart")
+        val chartPreferences = activity.getSharedPreferences(FixedChartAxes.PREFERENCES, android.content.Context.MODE_PRIVATE)
+        chartSection.addView(HoyiSwitch(activity).apply {
+            text = getString(R.string.fixed_chart_axes)
+            isChecked = chartPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+            tag = "product/settings/chart/fixed-axes"
+            visual.switch(this, 52)
+            setOnCheckedChangeListener { _, checked -> chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply() }
+        }, LinearLayout.LayoutParams(-1, -2))
+        style.add(chartSection, style.text(getString(R.string.fixed_chart_axes_hint),
+            TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
         val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
         themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
@@ -261,6 +280,14 @@ class AppSettingsFragment : Fragment() {
             }
         }
         style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
+        style.action(aboutCard, getString(R.string.settings_curve_import_guide),
+            "product/settings/app/curve-import-guide", top = 0) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(curveImportGuideUrl(activity.packageName))))
+            } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         visual.divider(aboutCard)
         if (PersonalUpdateChannel.isPersonal(activity.packageName)) {
             personalUpdateCard = PersonalUpdateCard(activity, aboutCard, visual)
@@ -278,6 +305,7 @@ class AppSettingsFragment : Fragment() {
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
+        diagnosticStorageCard = DiagnosticStorageCard(activity, diagnostics, visual)
         deviceControls?.addShutdown(diagnostics)
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
@@ -292,7 +320,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.post(refreshCapabilities)
         machineControls?.start()
         feedbackCard?.start(); feedbackCard?.refresh()
-        updateCard?.resume(); personalUpdateCard?.resume()
+        updateCard?.resume(); personalUpdateCard?.resume(); diagnosticStorageCard?.resume()
     }
     override fun onPause() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
@@ -300,7 +328,7 @@ class AppSettingsFragment : Fragment() {
         deviceControls?.close()
         machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
-        updateCard?.pause(); personalUpdateCard?.pause()
+        updateCard?.pause(); personalUpdateCard?.pause(); diagnosticStorageCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
         exportGeneration++
@@ -320,6 +348,7 @@ class AppSettingsFragment : Fragment() {
         feedbackCard = null; languageCard = null; fontSizeCard = null; exportStatus = null
         updateCard?.close(); updateCard = null
         personalUpdateCard?.close(); personalUpdateCard = null
+        diagnosticStorageCard?.pause(); diagnosticStorageCard = null
         super.onDestroyView()
     }
 }

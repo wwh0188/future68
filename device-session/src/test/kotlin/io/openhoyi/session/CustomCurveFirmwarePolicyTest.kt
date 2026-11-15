@@ -8,10 +8,10 @@ class CustomCurveFirmwarePolicyTest {
     private val p = StartParameters(true, true, 2, 7, 93, 55, false, 8,
         20, 38, 0, 0, 150, 12, 400, 0, 0)
 
-    @Test fun expandedFlowModesNeedReviewedProfileWhileExistingPressureAndHsStayCompatible() {
+    @Test fun allModesRequireExactOfficialCompatibilityProfile() {
         for (candidate in listOf(p.copy(pressureLogic = false), p.copy(firstSegmentFlowMode = true))) {
             assertTrue(CustomCurveFirmwarePolicy.requiresReviewedFlowProfile(candidate))
-            assertFalse(CustomCurveFirmwarePolicy.permits(candidate, CoffeeFirmwareProfiles.FW_1_1_3))
+            assertTrue(CustomCurveFirmwarePolicy.permits(candidate, CoffeeFirmwareProfiles.FW_1_1_3))
             assertTrue(CustomCurveFirmwarePolicy.permits(candidate, CoffeeFirmwareProfiles.FW_1_1_4))
             assertTrue(CustomCurveFirmwarePolicy.permits(candidate, 0x115))
             assertTrue(CustomCurveFirmwarePolicy.permits(candidate, CoffeeFirmware(1,1,5)))

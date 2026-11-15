@@ -58,14 +58,18 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             val root = requireNotNull(home.view)
             val viewport = Rect()
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
-            val tags = listOf("machine-status", "connect", "brew-boiler", "steam-boiler",
-                "brew-boiler/toggle", "steam-boiler/toggle") +
-                (if (activeCup) emptyList() else listOf("quick-launch", "shortcuts/direct-start") + (1..5).flatMap {
+            check(root.findViewWithTag<View>("product/home/connect") == null) {
+                "Home must not duplicate the shell connection/retry controls"
+            }
+            val tags = listOf("machine-status", "brew-boiler", "steam-boiler",
+                "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
+                (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")
                 }) + (if (lastCurveRecorded) listOf("last-curve/preview", "quick-recipe") else emptyList())
             val bounds = tags.associateWith { name ->
-                val view = requireNotNull(descendants(root).singleOrNull { it.tag == "product/home/$name" }) {
-                    "Missing actual Home view product/home/$name"
+                val viewTag = if (name.startsWith("machine-mode/")) name else "product/home/$name"
+                val view = requireNotNull(descendants(root).singleOrNull { it.tag == viewTag }) {
+                    "Missing actual Home view $viewTag"
                 }
                 val visible = Rect()
                 val shown = view.isShown
@@ -84,7 +88,79 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 if (view.isClickable) check(view.width >= 48 * density && view.height >= 48 * density) {
                     "720x360 Home $name has a touch target smaller than 48dp: ${view.width}x${view.height} density=$density"
                 }
+                if (name.startsWith("machine-mode/")) {
+                    val toggle = view as CurveEditorSegments
+                    check(toggle.text.isNotBlank()) { "Machine mode label missing: $name" }
+                    if (activeCup) check(!toggle.isEnabled) { "Machine mode must remain disabled during a cup: $name" }
+                }
                 visible
+            }
+            check(!Rect.intersects(bounds.getValue("machine-mode/control"), bounds.getValue("machine-mode/logic"))) {
+                "Machine mode switches overlap"
+            }
+            if (!activeCup) {
+                val quickHeading = requireNotNull(root.findViewWithTag<View>("product/home/compact-quick-heading"))
+                val modes = requireNotNull(root.findViewWithTag<View>("product/home/compact-mode-group"))
+                val quickRect = Rect(); val modeRect = Rect()
+                check(quickHeading.getGlobalVisibleRect(quickRect) && modes.getGlobalVisibleRect(modeRect))
+                if (quickRect.top < modeRect.bottom && modeRect.top < quickRect.bottom)
+                    check(modeRect.left - quickRect.right >= 16 * density - 1) { "Compact heading groups lost their 16dp gap: $quickRect / $modeRect" }
+            }
+            val isolatedModes = MachineModeControls(activity) { error("No writes in label stability check") }
+            isolatedModes.render(null)
+            isolatedModes.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            isolatedModes.layout(0, 0, isolatedModes.measuredWidth, isolatedModes.measuredHeight)
+            val modeLabels = descendants(isolatedModes).filterIsInstance<CurveEditorSegments>()
+            check(modeLabels.map { it.text.toString() } == listOf(
+                activity.getString(R.string.curve_control_pressure), activity.getString(R.string.curve_control_constant)))
+            check(modeLabels.all { !it.isEnabled && it.alpha < 1f })
+            check(modeLabels.all { it.contentDescription == activity.getString(R.string.machine_mode_missing) })
+            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
+                it.stateDescription == activity.getString(R.string.machine_mode_missing)
+            })
+            val labels = modeLabels.flatMap { descendants(it).filterIsInstance<android.widget.TextView>() }
+            check(labels.size == 4 && labels.all { !it.isEnabled && !it.isClickable })
+            modeLabels.forEach { it.selectFromUser(!it.checked) }
+            check(modeLabels.none { it.checked }) { "Disabled mode changed selection" }
+            val labelLayouts = labels.map { requireNotNull(it.layout) }
+            repeat(20) { isolatedModes.render(null) }
+            check(modeLabels.none { it.isLayoutRequested }) { "Unchanged machine labels requested layout" }
+            check(labels.map { it.layout } == labelLayouts) { "Unchanged machine labels discarded their text layouts" }
+            val owner = HomeFragment::class.java.getDeclaredField("service")
+                .apply { isAccessible = true }.get(home) as? MobileService
+            val original = owner?.snapshot
+            if (owner != null && original != null) {
+                val snapshotField = MobileService::class.java.getDeclaredField("snapshot").apply { isAccessible = true }
+                try {
+                    for (state in listOf(io.openhoyi.session.DeviceState.DISCONNECTED,
+                        io.openhoyi.session.DeviceState.CONNECTING, io.openhoyi.session.DeviceState.SYNCHRONIZING)) {
+                        snapshotField.set(owner, original.copy(coffeeState = state, settings = null))
+                        isolatedModes.render(owner)
+                        check(modeLabels.all { !it.isEnabled && it.text.toString() != "—" })
+                        check(modeLabels.all { it.contentDescription == activity.getString(R.string.machine_mode_missing) })
+                    }
+                    original.settings?.let { settings ->
+                        for ((bits, labels) in listOf(
+                            0x00 to listOf(R.string.curve_control_pressure, R.string.curve_control_constant),
+                            0x80 to listOf(R.string.curve_control_pressure, R.string.curve_control_follow),
+                            0x40 to listOf(R.string.curve_control_flow, R.string.curve_control_slow),
+                            0xC0 to listOf(R.string.curve_control_flow, R.string.curve_control_fast))) {
+                            snapshotField.set(owner, original.copy(settings = settings.copy(flags = bits)))
+                            isolatedModes.render(owner)
+                            check(modeLabels.map { it.text.toString() } == labels.map(activity::getString))
+                            check(modeLabels.map { it.checked } == listOf(bits and 0x40 != 0, bits and 0x80 != 0))
+                            check(modeLabels.all { it.isEnabled == MachineSettingsEditGate.allowed(owner) })
+                            // Switch restores its platform on/off state description when the override is cleared.
+                            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
+                                it.stateDescription != activity.getString(R.string.machine_mode_missing)
+                            })
+                        }
+                    }
+                } finally {
+                    snapshotField.set(owner, original)
+                    isolatedModes.render(owner)
+                }
             }
             File(directory, "$fixture.txt").writeText(geometry + "\n" +
                 bounds.entries.joinToString("\n") { (tag, rect) -> "$tag=$rect" } + "\n")
@@ -124,6 +200,30 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             activity = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
                 ?: error("Home Activity launch timed out after 10s")
             test.waitForIdleSync()
+            test.runOnMainSync {
+                val page = requireNotNull(activity)
+                val controls = MachineModeControls(page) { error("Disabled controls must not dispatch") }
+                controls.render(null)
+                val width = (page.resources.displayMetrics.density * 240).toInt()
+                controls.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                controls.layout(0, 0, controls.measuredWidth, controls.measuredHeight)
+                val segments = descendants(controls).filterIsInstance<CurveEditorSegments>()
+                check(segments.size == 2 && segments.none { it.isEnabled })
+                segments.forEach { segment ->
+                    segment.selectFromUser(true)
+                    check(!segment.checked)
+                    val labels = descendants(segment).filterIsInstance<android.widget.TextView>()
+                    check(labels.size == 2 && labels.all { !it.isEnabled && !it.isClickable && it.lineCount == 1 })
+                }
+                var calls = 0
+                val segment = CurveEditorSegments(page, TaskProductVisualStyle(page), "压力", "流量")
+                segment.onSelected = { calls++ }
+                segment.selectFromUser(true); check(segment.checked && calls == 1)
+                segment.select(false); check(calls == 1)
+                segment.isEnabled = false; segment.selectFromUser(true); check(!segment.checked && calls == 1)
+                segment.isEnabled = true; segment.selectFromUser(true); check(segment.checked && calls == 2)
+            }
             compactHomeGeometry(MainPageTestHost(test, requireNotNull(activity)), activeCup = false)
         } finally {
             test.removeMonitor(monitor)

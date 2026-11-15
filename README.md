@@ -1,15 +1,15 @@
 # OpenHOYI 77 扩展 · future68 自用仓库
 
-这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并对齐到 dev111 的相关 App 更新，以及原项目源码、历史和 GPL v2 许可证。
+这是基于 [boolean93/openhoyi](https://github.com/boolean93/openhoyi) 的个人扩展测试版，保留 dev-77 个人功能并对齐到 dev127 的相关 App 更新，以及原项目源码、历史和 GPL v2 许可证。
 
 - 补齐拨杆的四种官方模式组合。
 - 支持曲线整体变压／变流、逻辑与变流首段设置。
 - 曲线说明可多行编辑，用于记录磨豆机刻度、粉碗和粉重，随曲线分享和导入。
 - 保留 77 版的独立总量上限。
 
-**[从 GitHub 下载 V8 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v8.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v8.json)
+**[从 GitHub 下载 V9 测试 APK](https://github.com/wwh0188/future68/raw/refs/heads/feature/control-modes-curve-notes/downloads/OpenHOYI-77-Personal-v9.apk)** · [安装与使用说明](PERSONAL_BUILD.md) · [安装包校验记录](downloads/build-record-v9.json)
 
-应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V8（112）增加工作室选曲预热与温度进度、独立小中大字号、实时曲线集中多选/净出液重，并改善近方窗布局；精确支持 1.1.3 的受限拨杆配方发送。保留 ART、拨杆四模式、曲线说明、补偿/隐藏段及此前修复，个人更新继续使用私有 GitHub。可覆盖升级 V1～V7；详见 [V8 审查记录](docs/evidence/personal-dev111-audit.md)。本轮未实际安装或验收屏幕/设备效果；估计净重仅显示/记录，首段低流量预浸仍不保证 0 bar。
+应用名仍为「OpenHOYI 77 扩展」，私有仓库下载需登录有权限的 GitHub 账号。V9（128）同步新曲线编辑页、实时参数预览、另存新曲线、自定义曲线筛选、设置同步恢复、模式回读、日志管理和固定图轴。设置提供 [个人格式的截图导入教程](docs/personal-curve-import-guide.md)。一键萃取在未保存偏好时默认开，之前明确关闭的选择保留。保留 ART、曲线说明、补偿/隐藏段、字号及此前修复，个人更新仅用 GitHub；可覆盖升级 V1～V8。详见 [V9 审查记录](docs/evidence/personal-dev127-audit.md)。本轮未实际安装或验收屏幕/设备效果，软件检查不等于真实停水或固件持久化验收。
 
 本仓库当前工作分支为 `feature/control-modes-curve-notes`，用于保存已经完成的个人扩展。下方保留原项目说明，其中的原版功能状态及发版流程不等于本扩展的实机验收结果。
 

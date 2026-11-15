@@ -39,10 +39,10 @@ class CustomCurveStartPermitTest {
         }
     }
 
-    @Test fun newFlowRequires114AndQueuedFirmwareChangeRevokesStart() {
+    @Test fun newFlowAllows113AndQueuedFirmwareChangeRevokesStart() {
         val f=fixture(customCurveStartPermit={true})
         firmware(f,3)
-        assertNull(f.session.captureStartContext(p))
+        assertNotNull(f.session.captureStartContext(p))
         firmware(f,4)
         val context=requireNotNull(f.session.captureStartContext(p))
         val queue=DeviceSession::class.java.getDeclaredField("queue").apply {isAccessible=true}.get(f.session) as GattQueue

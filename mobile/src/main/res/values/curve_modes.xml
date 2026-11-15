@@ -21,7 +21,7 @@
     <string name="curve_modes_execution">支持官方变压 / 变流组合；启动前仍需确认。目标重量和分段水量需符合机器精度。</string>
     <string name="curve_modes_compatible">参数符合本地曲线启动范围</string>
     <string name="curve_modes_invalid">参数无效：名称 1–100 字，温度 75–105 °C，杯重 0–200 g；请检查所选模式的目标范围、分段水量与时间范围（变流首段 0 mL 时须设正数秒数）。曲线说明最多 8000 字。</string>
-    <string name="curve_copy_warning">工厂和采集曲线保存为本地副本，保留配方参数和曲线说明，原曲线不变。</string>
+    <string name="curve_copy_warning">保存将创建新本地副本，保留配方参数和曲线说明，原曲线不变。</string>
     <string name="curve_share_scope">分享名称、配方参数和曲线说明；不包含个人复盘、库存或设备原始记录。</string>
     <string name="curve_raw_target">原始目标（未知单位）</string>
     <string name="curve_compensation_summary">称重补偿 · %1$s g</string>

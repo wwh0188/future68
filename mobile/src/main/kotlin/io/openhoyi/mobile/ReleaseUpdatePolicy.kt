@@ -13,10 +13,13 @@ data class ReleaseUpdate(
     val releaseUrl: String,
     internal val indexJson: String? = null,
     val apkSize: Long = 0,
+    // Legacy cache metadata only. Never used to choose a download source.
+    val mirrorDownloadUrls: List<String> = emptyList(),
 )
 
 object ReleaseUpdateIndex {
     const val URL = "https://boolean93.github.io/openhoyi/updates/dev.json"
+    const val ACCELERATED_URL = "https://openhoyi.ios.dog/boolean93.github.io/openhoyi/updates/dev.json"
     const val MAX_BYTES = 64 * 1024
     private const val REPOSITORY = "boolean93/openhoyi"
     private const val BASE = "https://github.com/$REPOSITORY"
@@ -28,7 +31,7 @@ object ReleaseUpdateIndex {
     fun parse(json: String): ReleaseUpdate {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Update index is too large" }
         val fields = FlatJson(json).read()
-        require(fields.keys == keys) { "Unexpected update schema fields" }
+        require(fields.keys == keys || fields.keys == keys + "mirrorDownloadUrls") { "Unexpected update schema fields" }
         fun string(key: String): String = fields[key] as? String ?: error("Expected string: $key")
         fun integer(key: String): Long = fields[key] as? Long ?: error("Expected integer: $key")
         require(integer("schemaVersion") == 1L)
@@ -57,10 +60,19 @@ object ReleaseUpdateIndex {
         require(string("releaseUrl") == releaseUrl && string("downloadUrl") == downloadUrl)
         require(string("distributionUrl") == prefix + "distribution.json")
         require(string("checksumsUrl") == prefix + "SHA256SUMS.txt")
-        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"))
+        // Keep the old bounded schema readable without restoring its download transport.
+        val mirrors = if (fields.containsKey("mirrorDownloadUrls")) {
+            val values = fields["mirrorDownloadUrls"] as? List<*> ?: error("Expected mirror URL array")
+            require(values.size <= 1)
+            values.map { value ->
+                require(value == "https://gitee.com/$REPOSITORY/releases/download/$tag/$filename")
+                value as String
+            }
+        } else emptyList()
+        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"), mirrors)
     }
 
-    /** Schema v1 is flat. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */
+    /** Schema v1 plus one bounded optional string array. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */
     private class FlatJson(private val source: String) {
         private var at = 0
         private fun whitespace() { while (at < source.length && source[at] in " \r\n\t") at++ }
@@ -87,6 +99,17 @@ object ReleaseUpdateIndex {
         private fun value(): Any? {
             whitespace()
             if (at < source.length && source[at] == '"') return quoted()
+            if (at < source.length && source[at] == '[') {
+                take('[')
+                whitespace()
+                val values = mutableListOf<String>()
+                if (at < source.length && source[at] != ']') {
+                    values += quoted()
+                    // Only one mirror is supported; no nested values or coercion.
+                }
+                take(']')
+                return values
+            }
             val start = at
             while (at < source.length && source[at] !in ",} \r\n\t") at++
             val token = source.substring(start, at)
@@ -131,17 +154,28 @@ data class InstalledUpdateIdentity(
     val versionCode: Long,
     val debuggable: Boolean,
     val signerSha256: String?,
+    val versionName: String? = null,
 )
+
+/** Local previews share the app identity, but are never allowed to bypass Android's downgrade rule. */
+internal fun InstalledUpdateIdentity.isLocalDebugPreview(): Boolean = debuggable &&
+    versionName?.matches(Regex("[0-9]+(?:\\.[0-9]+){1,3}-local\\.[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*")) == true
+
+internal fun releaseAutomaticCheckEligible(identity: InstalledUpdateIdentity?): Boolean = identity?.let {
+    it.packageName == "io.openhoyi.mobile" && (!it.debuggable || it.isLocalDebugPreview()) &&
+        it.versionCode > 0 && it.signerSha256?.matches(Regex("[0-9a-f]{64}")) == true
+} == true
 
 fun releaseUpdateStatus(installed: InstalledUpdateIdentity?, update: ReleaseUpdate): ReleaseUpdateStatus = when {
     installed == null -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
     installed.packageName == "io.openhoyi.mobile.mock" -> ReleaseUpdateStatus.MOCK_PREVIEW
     installed.packageName != "io.openhoyi.mobile" -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
-    installed.debuggable -> ReleaseUpdateStatus.DEBUG_PREVIEW
+    installed.debuggable && !installed.isLocalDebugPreview() -> ReleaseUpdateStatus.DEBUG_PREVIEW
     installed.versionCode <= 0 || installed.signerSha256 == null ||
         !Regex("[0-9a-f]{64}").matches(installed.signerSha256) -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
     installed.signerSha256 != update.signerSha256 -> ReleaseUpdateStatus.SIGNATURE_MISMATCH
-    update.versionCode > installed.versionCode -> ReleaseUpdateStatus.AVAILABLE
+    update.versionCode > installed.versionCode ||
+        (update.versionCode == installed.versionCode && installed.isLocalDebugPreview()) -> ReleaseUpdateStatus.AVAILABLE
     update.versionCode == installed.versionCode -> ReleaseUpdateStatus.SAME_VERSION
     else -> ReleaseUpdateStatus.INSTALLED_NEWER
 }

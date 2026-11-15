@@ -92,7 +92,10 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     invariant()
                 }
                 capture("selected-window")
-                main {check(page.viewField<View>(home,"machineConnect").performClick())}
+                main {
+                    check(home.requireView().findViewWithTag<View>("product/home/connect") == null)
+                    check(requireNotNull(home.requireView().findViewWithTag<View>("product/home/details")).performClick())
+                }
                 test.waitForIdleSync()
                 await {
                     val settings=activity.supportFragmentManager.primaryNavigationFragment as? AppSettingsFragment
@@ -111,7 +114,8 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                         val row=requireNotNull(activity.findViewById<View>(android.R.id.content).findViewWithTag<View>("settings/devices/${role.name}"))
                         val state=if(role==io.openhoyi.session.DeviceRole.COFFEE)owner.snapshot.coffeeState else owner.snapshot.scaleState
                         complete(row);complete(status)
-                        check(status.text.toString()==activity.getString(R.string.application_mode_mock)+" · "+DeviceStatusText.label(activity,state))
+                        check(status.text.toString()==DeviceStatusText.settingsSummary(
+                            DeviceStatusText.label(activity,state), activity.getString(R.string.application_mode_mock)))
                     }
                     check(states.size==2)
                     invariant()
@@ -122,7 +126,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 main {check(page.active("root:BREW")===home);complete(page.viewField<TextView>(home,"quickLaunch"));invariant()}
                 capture("home-restored")
                 main {ScaleTrendPanelChecks.verify(activity,directory);invariant()}
-                File(directory,"route.txt").writeText("actualConnect=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noCommands=true\n")
+                File(directory,"route.txt").writeText("actualDeviceDetails=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noCommands=true\n")
             } finally {main {activity.finish()};test.waitForIdleSync()}
         } finally {main {restoreMockPreferences(preferences,before)}}
     }

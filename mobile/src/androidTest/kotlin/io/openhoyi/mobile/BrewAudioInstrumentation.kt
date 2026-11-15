@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var downloadRoutingChecks = false
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
     private var fontSizeChecks = false
@@ -48,11 +49,15 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var taskFrameChecks = false
     private var homeNavigationOnly = false
     private var mainNavigationChecks = false
+    private var homeModeVisualArguments: Bundle? = null
     private var settingsNavigationOnly = false
     private var inlineNavigationOnly = false
     private var singleScreenChecks = false
     private var historyFooterArguments: Bundle? = null
     private var customExecution = false
+    private var customFlowEditorChecks = false
+    private var editorBArguments: Bundle? = null
+    private var editorBLayoutArguments: Bundle? = null
     private var systemDocuments = false
     private var disposableCiEmulator = false
     private var documentContracts = false
@@ -63,6 +68,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
@@ -86,6 +92,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
+        homeModeVisualArguments = arguments?.takeIf { it.getString("homeModeVisual") == "true" }?.let(::Bundle)
         mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline", "home")
         homeNavigationOnly = arguments?.getString("mainNavigationChecks") == "home"
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
@@ -93,6 +100,9 @@ class BrewAudioInstrumentation : Instrumentation() {
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
+        customFlowEditorChecks = arguments?.getString("customFlowEditorChecks") == "true"
+        editorBLayoutArguments = arguments?.takeIf { it.getString("editorBLayoutChecks") == "true" }?.let(::Bundle)
+        editorBArguments = arguments?.takeIf { it.getString("editorBChecks") == "true" }?.let(::Bundle)
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
@@ -115,6 +125,21 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            editorBLayoutArguments?.let { args ->
+                CurveEditorBLayoutChecks(this).run(args)
+                report.putString("stream", "EDITOR_B_LAYOUT_CHECKS_PASSED fixedActions=true ime=true touch48=true colors=true noCurveSaved=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            editorBArguments?.let { args ->
+                CurveEditorBChecks(this).run(args)
+                report.putString("stream", "EDITOR_B_CHECKS_PASSED copy=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (downloadRoutingChecks) {
+                ReleaseDownloadRoutingChecks(this).run()
+                report.putString("stream", "DOWNLOAD_ROUTING_PASSED settingsInline=true otherPagePopup=true navigation=true recreation=true transferPreserved=true noInstaller=true noNetwork=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (fontSizeChecks) {
                 FontSizeRuntimeChecks(this).run()
                 report.putString("stream", "FONT_SIZE_CHECKS_PASSED independentSystemScale=true previewCancelApply=true preheatRequestPreserved=true navigationCancel=true sameCup=true sameService=true retainedDraft=true noBle=true\n")
@@ -139,7 +164,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (shortcutDirectStartChecks) {
                 ShortcutDirectStartWindowChecks(this).run(shortcutTheme)
-                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
+                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOn=true homeToggle=false settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (machineLeverRecipeChecks) {
@@ -158,8 +183,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             if(connectionSleepChecks){
+                ServiceSleepReconnectChecks(this).run()
                 val count=ConnectionSleepPresentationChecks(this).run()
-                report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true noBle=true noMachineCommands=true\n")
+                report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true serviceNativeDoubleClick=true noBle=true noMachineCommands=true\n")
                 finish(Activity.RESULT_OK,report);return
             }
             settingsVisualArguments?.let { arguments ->
@@ -250,6 +276,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (chartSeriesSelectorChecks) {
                 ChartSeriesSelectorChecks(this).run()
+                FixedChartAxesChecks(this).run()
                 report.putString("stream", "CHART_SERIES_SELECTOR_CHECKS_PASSED noBle=true drawing=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
@@ -263,6 +290,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (taskFrameChecks) {
                 TaskFrameChecks(this).run()
                 report.putString("stream", "TASK_FRAME_CHECKS_PASSED pages=24 noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            homeModeVisualArguments?.let {
+                HomeModeVisualChecks(this).run(it)
+                report.putString("stream", "HOME_MODE_VISUAL_PASSED mockOnly=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -287,6 +320,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (singleScreenChecks) {
                 SingleScreenWindowRun(this).run()
                 report.putString("stream", "SINGLE_SCREEN_WINDOW_CHECKS_PASSED noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (customFlowEditorChecks) {
+                CustomFlowCurveEditorChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CUSTOM_FLOW_EDITOR_CHECKS_PASSED factoryCopies=2 recreate=true saveReopen=true shareImport=true invalidNoExitBlocked=true rawReadOnly=true reachableFields=true externalSend=false noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

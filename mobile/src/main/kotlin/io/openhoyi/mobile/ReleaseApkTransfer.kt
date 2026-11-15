@@ -10,11 +10,25 @@ import javax.net.ssl.HttpsURLConnection
 
 internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
     if (value.scheme != "https" || value.port !in setOf(-1, 443) || value.userInfo != null || value.fragment != null) return false
+    if (initial.host == "openhoyi.ios.dog") {
+        return value.host == initial.host && value.rawPath == initial.rawPath && value.rawQuery == null
+    }
     return when (value.host) {
         "github.com" -> value.path == initial.path && value.rawQuery == null
         "release-assets.githubusercontent.com" -> value.path.startsWith("/github-production-release-asset/")
         else -> false
     }
+}
+
+/** Build the accelerator URL only from the already validated canonical identity, never from an index mirror list. */
+internal fun releaseAcceleratedApkUrl(target: ReleaseUpdate): String {
+    val canonical = URI(target.downloadUrl)
+    require(canonical.scheme == "https" && canonical.host == "github.com" && canonical.port == -1 &&
+        canonical.rawQuery == null && canonical.userInfo == null && canonical.fragment == null)
+    val filename = canonical.rawPath.substringAfterLast('/')
+    require(filename.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))
+    require(canonical.rawPath == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/$filename")
+    return "https://openhoyi.ios.dog${canonical.rawPath}"
 }
 
 /** A single explicit attempt. Redirect credentials and signed query strings are never logged. */
@@ -24,10 +38,12 @@ internal class ReleaseApkTransfer(
 ) {
     @Volatile private var cancelled = false
     fun cancel() { cancelled = true }
-    fun download(target: ReleaseUpdate, part: File, progress: (Long) -> Unit) {
+    fun download(target: ReleaseUpdate, part: File, progress: (Long) -> Unit) = downloadFrom(target, target.downloadUrl, part, progress)
+    fun downloadFrom(target: ReleaseUpdate, url: String, part: File, progress: (Long) -> Unit) {
         require(target.apkSize in 1..256L * 1024 * 1024)
-        val initial = URI(target.downloadUrl)
-        require(initial.scheme == "https" && initial.host == "github.com" && initial.port == -1 &&
+        val initial = URI(url)
+        require(url == target.downloadUrl || url == releaseAcceleratedApkUrl(target))
+        require(initial.scheme == "https" && initial.host in setOf("github.com", "openhoyi.ios.dog") && initial.port == -1 &&
             initial.userInfo == null && initial.rawQuery == null && initial.fragment == null &&
             initial.path == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/" + initial.path.substringAfterLast('/') &&
             initial.path.substringAfterLast('/').matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))

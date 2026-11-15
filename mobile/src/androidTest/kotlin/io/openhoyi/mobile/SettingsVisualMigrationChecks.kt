@@ -1315,6 +1315,19 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                         val website=tagged(activity,"product/settings/app/project-home") as TextView
                         check(website.text.toString()==activity.getString(R.string.settings_project_home) && website.hasOnClickListeners())
                         check(website.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
+                        val importGuide=tagged(activity,"product/settings/app/curve-import-guide") as TextView
+                        check(importGuide.text.toString()==activity.getString(R.string.settings_curve_import_guide) && importGuide.hasOnClickListeners())
+                        check(importGuide.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
+                        check(importGuide.visibility==View.VISIBLE && importGuide.isEnabled)
+                        val guideUri=android.net.Uri.parse(AppSettingsFragment.curveImportGuideUrl(activity.packageName))
+                        if (PersonalUpdateChannel.isPersonal(activity.packageName)) {
+                            check(guideUri.scheme=="https" && guideUri.host=="github.com" &&
+                                guideUri.path=="/wwh0188/future68/blob/feature/control-modes-curve-notes/docs/personal-curve-import-guide.md")
+                        } else {
+                            check(guideUri.scheme=="https" && guideUri.host=="boolean93.github.io" && guideUri.path=="/openhoyi/import-official-curves.html")
+                        }
+                        check(AppSettingsFragment.curveImportGuideUrl("io.openhoyi.mobile.personal") ==
+                            AppSettingsFragment.PERSONAL_CURVE_IMPORT_GUIDE_URL)
                         check(!(field(requireNotNull(field(activity,"feedbackCard")),"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
                     }
                     is MachineSettingsActivity -> {

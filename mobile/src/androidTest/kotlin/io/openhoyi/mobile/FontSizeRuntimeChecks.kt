@@ -341,7 +341,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         var key = ""
         val focusKey = "description"
         val draftDescription = "Personal curve notes\nRetain this unsaved multiline description."
-        var savedMetadataScroll = 0
+        var savedContentScroll = 0
         try {
             await("Editor native window not ready for input") {
                 screen.hasWindowFocus() && fields().values.all { it.isLaidOut || !it.isShown } &&
@@ -367,10 +367,10 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             main {
                 val form = CurveEditorActivity::class.java.getDeclaredField("form").apply { isAccessible = true }
                     .get(screen) as TaskCurveEditorForm
-                val metadata = screen.window.decorView.findViewWithTag<android.widget.ScrollView>("product/form/curve-editor/metadata-scroll")
-                metadata.scrollTo(0, metadata.getChildAt(0).height)
+                val content = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.ScrollView>("product/form/curve-editor/content-scroll"))
+                content.scrollTo(0, content.getChildAt(0).height)
                 val saved = android.os.Bundle().also { form.save(it, fields()) }
-                savedMetadataScroll = saved.getInt("metadata-scroll")
+                savedContentScroll = saved.getInt("editor-content-scroll")
                 check(saved.getString("form-focus") == focusKey && saved.getInt("form-start") == 1 && saved.getInt("form-end") == 2)
                 android.util.Log.i("FontSizeChecks", "editor ready: focus=$focusKey selection=1..2 window=${screen.hasWindowFocus()} ime=${saved.getBoolean("editor-ime-visible")}")
                 select(if (app.fontSizePreferences.current == AppFontSize.SMALL) AppFontSize.LARGE else AppFontSize.SMALL)
@@ -402,9 +402,9 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 val description = fields().getValue(focusKey)
                 check(description.text.toString() == draftDescription && description.hasFocus())
                 check(description.selectionStart == 1 && description.selectionEnd == 2 && description.maxLines > 1)
-                val metadata = screen.window.decorView.findViewWithTag<android.widget.ScrollView>("product/form/curve-editor/metadata-scroll")
-                val range = (metadata.getChildAt(0).height - metadata.height + metadata.paddingTop + metadata.paddingBottom).coerceAtLeast(0)
-                check(metadata.scrollY == savedMetadataScroll.coerceIn(0, range))
+                val content = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.ScrollView>("product/form/curve-editor/content-scroll"))
+                val range = (content.getChildAt(0).height - content.height + content.paddingTop + content.paddingBottom).coerceAtLeast(0)
+                check(content.scrollY == savedContentScroll.coerceIn(0, range))
                 check(screen.resources.configuration.fontScale == app.fontSizePreferences.current.scale)
             }
         } finally {

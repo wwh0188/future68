@@ -1,0 +1,22 @@
+{
+  "schema": 4,
+  "kind": "openhoyi.local-curve",
+  "id": "draft-12300000-0000-4000-8000-000000000001",
+  "name": "格式示例：压力曲线",
+  "temperatureC": 92,
+  "targetHundredthsGram": 3600,
+  "controlMode": "pressure",
+  "stages": [
+    {"target": 30, "waterTenthsMl": 100},
+    {"target": 90, "waterTenthsMl": 200},
+    {"target": 60, "waterTenthsMl": 300}
+  ],
+  "totalWaterLimitMl": 150,
+  "pressureLogic": false,
+  "firstSegmentFlowMode": false,
+  "preinfusionSeconds": 0,
+  "firstDurationSeconds": 0,
+  "description": "格式示例，请勿用于填补截图缺项\n磨豆机刻度、粉碗和粉重由用户填写",
+  "compensationHundredthsGram": -50,
+  "inactiveStages": [{"target": 0, "waterTenthsMl": 0}]
+}

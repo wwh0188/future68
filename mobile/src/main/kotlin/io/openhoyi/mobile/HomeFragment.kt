@@ -77,13 +77,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var previousCupActive = false
     private lateinit var quickLaunch: Button
     private lateinit var quickRow: LinearLayout
-    private lateinit var machineConnect: Button
-    private var machineRetryIconShown=false
+    private var compactQuickHeading: View? = null
     private lateinit var brewPressure: TextView
     private lateinit var steamTemperature: TextView
     private lateinit var steamPressure: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
+    private lateinit var machineModes: MachineModeControls
+    private var dialogMachineModes: MachineModeControls? = null
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
     private lateinit var emergencyStop: Button
@@ -104,16 +105,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var layoutDirectPresets: (Boolean) -> Unit = {}
     private var presetVisualsDirty = true
     private var customCurveRevision = -1L
-    private var shortcutToggle: Switch? = null
-    private var updatingShortcut = false
-    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
-    private val shortcutPreferences by lazy { ShortcutStartPreferences(host) }
-    private fun refreshShortcutChoice() {
-        val checked = shortcutPreferences.read().startsOnTap
-        updatingShortcut = true
-        if (shortcutToggle?.isChecked != checked) shortcutToggle?.isChecked = checked
-        updatingShortcut = false
-    }
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
@@ -152,6 +143,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     }
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         boilerDials.clear()
+        compactQuickHeading = null
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
@@ -240,28 +232,22 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 14 else 18,500,if (compactType) 20 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
-        val machineRow = productStyle.row("product/home/machine-status").apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
+        val machineHeading = productStyle.row().apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
+        machineModes = MachineModeControls(host, ::changeMachineMode)
+        // Short landscape already shares this header with the last-curve card. Keep
+        // its original width budget; the modes reuse the quick-heading row below.
+        val machineRow = if (shortWideHome) machineHeading.apply {
+            tag = "product/home/machine-status"
+        } else MachineModeHeader(host, machineHeading, machineModes)
         val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
             it.gravity = android.view.Gravity.CENTER_VERTICAL
             content.addView(it, LinearLayout.LayoutParams(-1, -2))
         } else null
         (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
-        machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
-        machineRetryIconShown=false // A rebuilt View must establish its own drawable.
-        machineConnect = button(machineRow, getString(R.string.home_connect)) {
-            if(service?.snapshot?.coffeeState==DeviceState.READY)showDevicePanel() else host.reconnectCoffee()
-        }.apply {
-            tag = "product/home/connect"
-            setSingleLine(true);maxLines=1
-            layoutParams = LinearLayout.LayoutParams(-2, dp(48))
-            if (shortWideHome) {
-                minWidth = dp(64); minimumWidth = dp(64)
-                setPadding(dp(8), paddingTop, dp(8), paddingBottom)
-            }
-        }
+        machineHeading.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
@@ -370,37 +356,22 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.Type(if (compactType) 16 else if (shortHome) 18 else 22, 500, if (compactType) 24 else if (shortHome) 28 else 32), "product/home/quick-title")
-        val directStart = HoyiSwitch(host).apply {
-            text = getString(R.string.shortcut_start_setting)
-            tag = "product/home/shortcuts/direct-start"
-            productStyle.apply(this, TaskProductVisualStyle.Type(14, 400, 20))
-            isChecked = shortcutPreferences.read().startsOnTap
-            showText = false
-            switchPadding = dp(6)
-            minHeight = dp(48); minimumHeight = minHeight
-            setPadding(dp(2), 0, 0, 0)
-            background = null
-            setOnCheckedChangeListener { _, checked ->
-                if (!updatingShortcut) {
-                    host.revokeShortcutStart()
-                    if (!shortcutPreferences.choose(checked))
-                        Toast.makeText(host, R.string.shortcut_start_save_failed, Toast.LENGTH_LONG).show()
-                    refreshShortcutChoice()
-                }
-            }
-        }.also { shortcutToggle = it }
         val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
-            addView(directStart, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
         }
         val previewHeading = object : LinearLayout(host) {
-            init { gravity = android.view.Gravity.CENTER_VERTICAL; addView(titleGroup); addView(previewLegend) }
+            init {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(titleGroup)
+                addView(previewLegend)
+            }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                quickTitle.measure(natural, natural); directStart.measure(natural, natural); previewLegend.measure(natural, natural)
-                val titleNaturalWidth = quickTitle.measuredWidth + directStart.measuredWidth + dp(12)
-                val stacked = titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
+                quickTitle.measure(natural, natural); previewLegend.measure(natural, natural)
+                val titleNaturalWidth = quickTitle.measuredWidth
+                val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+                    titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
                 orientation = if (stacked) VERTICAL else HORIZONTAL
                 val titleWidth = if (stacked) -1 else 0
                 val titleWeight = if (stacked) 0f else 1f
@@ -413,7 +384,44 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
+        if (shortWideHome) {
+            // Modes remain visible (and safety-gated) while quick actions hide for an
+            // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
+            previewHeading.tag = "product/home/compact-quick-heading"
+            compactQuickHeading = previewHeading
+            val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary),
+                    LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+                addView(machineModes, LinearLayout.LayoutParams(-2, -2))
+            }
+            val sharedHeading = object : LinearLayout(host) {
+                init {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    isBaselineAligned = false
+                    addView(previewHeading, LayoutParams(0, -2, 1f))
+                    addView(modeGroup, LayoutParams(-2, -2))
+                }
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    previewHeading.measure(natural, natural); modeGroup.measure(natural, natural)
+                    val previewWidth = if (previewHeading.visibility == View.GONE) 0 else previewHeading.measuredWidth
+                    val gap = if (previewHeading.visibility == View.GONE) 0 else dp(16)
+                    val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+                        previewWidth + modeGroup.measuredWidth + gap > View.MeasureSpec.getSize(widthMeasureSpec)
+                    orientation = if (stacked) VERTICAL else HORIZONTAL
+                    (previewHeading.layoutParams as LayoutParams).apply {
+                        width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f
+                    }
+                    (modeGroup.layoutParams as LayoutParams).apply {
+                        width = if (stacked) -1 else -2; marginStart = if (stacked) 0 else gap
+                        resolveLayoutDirection(layoutDirection)
+                    }
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                }
+            }
+            content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2))
+        } else quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         lastCurveRow = object : LinearLayout(host) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 if (phoneHome && compactType && childCount == 4) {
@@ -602,7 +610,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         alarmStatus = text(deviceCard, getString(R.string.home_alarm_initial), 14)
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
-        leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
+        leverButton = button(deviceCard, getString(R.string.machine_mode_title)) { chooseLeverMode() }
         sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(host, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
@@ -846,14 +854,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetVisualsDirty = true
         lastCurveDirty = true
         visible = true
-        stopShortcutPreferenceObserver?.invoke()
-        stopShortcutPreferenceObserver = shortcutPreferences.observe(::refreshShortcutChoice)
-        refreshShortcutChoice()
         host.observeService(serviceObserver)
         handler.post(refresh)
     }
     override fun onPause() {
-        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         feedbackUi.leave(host.isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
@@ -861,11 +865,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetDialog?.dismiss()
         recentCurves.dismiss()
         host.removeServiceObserver(serviceObserver); service=null;super.onPause()
-    }
-    override fun onDestroyView() {
-        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
-        shortcutToggle = null
-        super.onDestroyView()
     }
     private fun missingBle(): List<String> {
         val required = if (Build.VERSION.SDK_INT >= 31) listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
@@ -923,22 +922,18 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         AppDialog.show(dialog)
         transientDialogs += dialog
     }
+    private fun changeMachineMode(change: MachineSettingChange.LeverMode) {
+        if (!MachineSettingsEditGate.allowed(service)) { render(); return }
+        service?.changeMachineSetting(change)?.let(::toast)
+        render()
+    }
     private fun chooseLeverMode() {
-        if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_lever_mock)); return }
-        val modes = listOf(
-            MachineSettingChange.LeverMode(false, false),
-            MachineSettingChange.LeverMode(true, false),
-            MachineSettingChange.LeverMode(true, true),
-            MachineSettingChange.LeverMode(false, true),
-        )
-        AlertDialog.Builder(host).setTitle(getString(R.string.home_lever_choose_title))
-            .setItems(modes.map(settingsPresentation::change).toTypedArray()) { _, index ->
-                val change = modes[index]
-                AlertDialog.Builder(host).setTitle(getString(R.string.home_lever_confirm_title))
-                    .setMessage(getString(R.string.home_lever_confirmation_message, settingsPresentation.change(change)))
-                    .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
-                    .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
-            }.let(::showTransient)
+        val controls = MachineModeControls(host, ::changeMachineMode).apply { render(service); setPadding(dp(20), dp(4), dp(20), dp(4)) }
+        dialogMachineModes = controls
+        val dialog = AlertDialog.Builder(host).setTitle(R.string.machine_mode_title).setView(controls)
+            .setPositiveButton(R.string.machine_settings_done, null).create()
+        dialog.setOnDismissListener { dialogMachineModes = null }
+        AppDialog.show(dialog); transientDialogs += dialog
     }
     private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
@@ -971,12 +966,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
         val boilerRecoveryActive=owner?.boilerReadbackRecoveryActive==true
+        val localWriteProgress=boilerRecoveryActive || owner?.machineModeWritePending==true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {boilerRecoveryActive}
+            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {localWriteProgress}
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
-            (owner?.machineWriteAcknowledgementAvailable != true || boilerRecoveryActive)) View.GONE else View.VISIBLE
+            (owner?.machineWriteAcknowledgementAvailable != true || localWriteProgress)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
@@ -984,34 +980,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         prominentAlarm.show(alarmBanner?.message.orEmpty())
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
             R.color.mobile_danger else R.color.mobile_accent))
-        status.show(getString(R.string.home_machine_title) + " · " + if (owner?.manualShotActive == true)
-            getString(R.string.home_manual_shot_status) else DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure) +
-            if (LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now) != null)
-                getString(R.string.home_live_suffix) else "")
+        // The shell owns connection status and recovery; this header only names the machine.
+        status.show(getString(R.string.home_machine_title) + if (owner?.manualShotActive == true)
+            " · " + getString(R.string.home_manual_shot_status) else "")
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = View.VISIBLE
-        machineConnect.show(getString(when {
-            s.coffeeState==DeviceState.READY -> R.string.home_visual_change
-            TaskShellDeviceStatus.connecting(s.coffeeState) -> R.string.task_shell_action_connecting
-            else -> R.string.coffee_connection_retry
-        }))
-        val showRetry=s.coffeeState!=DeviceState.READY && !TaskShellDeviceStatus.connecting(s.coffeeState)
-        if(machineRetryIconShown!=showRetry || showRetry && machineConnect.compoundDrawablesRelative[0]==null) {
-            if(showRetry) {
-                val chrome=TaskShellVisualStyle(host)
-                val retry=HomeVisualIcon.drawable(host,"retry",machineConnect.currentTextColor,
-                    currentTint={machineConnect.currentTextColor},strokeDp=chrome.iconStrokeDp,solidAccents=chrome.solidIcons)
-                    .apply {setBounds(0,0,dp(20),dp(20))}
-                machineConnect.compoundDrawablePadding=dp(8)
-                machineConnect.setCompoundDrawablesRelative(retry,null,null,null)
-            } else {
-                machineConnect.setCompoundDrawablesRelative(null,null,null,null)
-                machineConnect.compoundDrawablePadding=0
-            }
-            machineRetryIconShown=showRetry
-        }
-        machineConnect.contentDescription=getString(R.string.home_coffee)+" · "+DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure)+" · "+machineConnect.text
-        machineConnect.isEnabled=TaskShellDeviceStatus.canReconnect(s.coffeeState,owner?.manualShotActive==true || owner?.shotState?.let(ShotGate::active)==true)
         scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
@@ -1030,6 +1003,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
+        machineModes.render(owner)
+        dialogMachineModes?.render(owner)
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
@@ -1141,6 +1116,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        compactQuickHeading?.visibility = quickRow.visibility
         lastCurveRow.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())

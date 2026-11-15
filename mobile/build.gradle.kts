@@ -12,6 +12,8 @@ android {
     testBuildType = if (updateChecks) "updateFixture" else "mock"
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
+        // GitHub-only delivery: retain accelerated transport without enabling another source.
+        buildConfigField("boolean", "RELEASE_ACCELERATED_ENABLED", "false")
         minSdk = 26
         targetSdk = 35
         // Filter transitive AndroidX locales as well as application translations.
@@ -130,4 +132,12 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         .withPropertyName("appTypographySourceGuard").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
     inputs.files(file("src/main/AndroidManifest.xml"), fileTree("src/main/res") { include("**/*.xml") })
         .withPropertyName("appTypographyResourceGuard").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
+
+// Prompt fixtures/text changes must invalidate their real-parser JVM contract checks.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(rootProject.fileTree("docs/curve-import"))
+        .withPropertyName("curveImportPromptContract")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    systemProperty("hoyi.curve.prompt.dir", rootProject.file("docs/curve-import").absolutePath)
 }

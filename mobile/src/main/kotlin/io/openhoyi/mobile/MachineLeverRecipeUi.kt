@@ -7,7 +7,7 @@ import android.widget.Toast
 internal object MachineLeverRecipeUi {
     fun confirm(host: MainActivity, item: CurveLibraryItem) {
         val service = host.currentService ?: return toast(host, host.getString(R.string.service_unavailable))
-        service.leverRecipeWriteBlock()?.let { return toast(host, it) }
+        service.leverRecipeWriteBlock(explicit = true)?.let { return toast(host, it) }
         val library = (host.application as MobileApplication).curves
         val profile = library.resolve(item.id, false, 7)
             ?: return toast(host, host.getString(R.string.lever_changed))

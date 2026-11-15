@@ -43,14 +43,14 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                     Triple(State.CONFIRMED,null,1),Triple(State.CONFIRMED,null,0))
                 for((state,fresh,last) in cases) {
                     val id=SleepPresentation.status(state,fresh,last)
-                    text(id)
-                    SleepPresentation.hint(state,fresh,last)?.let {text(it)}
+                    text(SleepPresentation.compactStatus(id))
+                    SleepPresentation.compactHint(SleepPresentation.hint(state,fresh,last))?.let {text(it)}
                     val button=Button(context).apply {
-                        setText(if(id in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed))R.string.task_shell_machine_asleep else R.string.home_sleep_button)
-                        isEnabled=false
+                        setText(if(id in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed))R.string.task_shell_sleep_wake else R.string.home_sleep_button)
+                        isEnabled=SleepReconnectPolicy.allowed(true,DeviceState.READY,state,fresh,last,false,null,false,false)
                     }
                     body.addView(button)
-                    check(!button.isEnabled)
+                    check(button.isEnabled==(state==State.CONFIRMED && last==1))
                     if(state in setOf(State.WRITING,State.WAITING_ASLEEP,State.UNKNOWN))check(id!=R.string.task_shell_machine_awake)
                     if(last==0 && fresh==null)check(id!=R.string.sleep_status_last_confirmed)
                 }
@@ -122,12 +122,13 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                         val status=shell.findViewWithTag<TextView>("task-shell-coffee-status").text.toString().removePrefix("● ")
                         val hint=shell.findViewWithTag<TextView>("task-shell-coffee-hint")
                         val retry=shell.findViewWithTag<Button>("task-shell-coffee-retry")
-                        val headerAction=host.viewField<Button>(fragment,"machineConnect").text.toString()
+                        check(fragment.requireView().findViewWithTag<View>("product/home/connect") == null) {
+                            "Home must keep connection actions in the shell"
+                        }
                         check(header==host.activity.getString(R.string.home_machine_title)+" · "+label) {"Header contains extra process text: $header"}
                         check(status==label && !hint.isShown) {"Connection hint remained on the actual rail"}
                         check(retry.isShown && retry.layout.lineCount==1)
                         check(!retry.contentDescription.toString().contains('\uFFFC'))
-                        val homeRetry=host.viewField<Button>(fragment,"machineConnect")
                         fun iconSpans(button:Button)=(button.text as? android.text.Spanned)
                             ?.getSpans(0,button.text.length,android.text.style.ReplacementSpan::class.java)?.toList().orEmpty()
                         if(name=="failed") {
@@ -146,7 +147,6 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                             check(retry.text.count {it=='\uFFFC'}==1)
                             check(TaskShellStatusView::class.java.getDeclaredField("coffeeRetryIcon").apply {isAccessible=true}.get(shell)=="retry")
                             check(TaskShellStatusView::class.java.getDeclaredField("reconnectIcon").apply {isAccessible=true}.get(shell)==if(scaleCanRetry)"retry" else "new")
-                            check(homeRetry.compoundDrawablesRelative[0]!=null && homeRetry.layout.lineCount==1)
                             var coffeeClicks=0;var scaleClicks=0
                             val probe=TaskShellStatusView(host.activity,{}, {}, {scaleClicks++}, {}, {coffeeClicks++})
                             probe.present(owner)
@@ -159,13 +159,12 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                             val scaleRetry=shell.findViewWithTag<Button>("task-shell-scale-reconnect")
                             check(iconSpans(retry).isEmpty() && !retry.text.contains('\uFFFC') && !retry.isEnabled)
                             check(iconSpans(scaleRetry).isEmpty() && !scaleRetry.text.contains('\uFFFC') && !scaleRetry.isEnabled)
-                            check(homeRetry.compoundDrawablesRelative.all {it==null} && !homeRetry.isEnabled)
                         }
                         if(host.activity.resources.configuration.locales[0].language=="zh") {
-                            check(label.length<=4 && retry.text.length<=4 && headerAction.length<=4)
+                            check(label.length<=4 && retry.text.length<=4)
                         }
                         connectionChecks.put(org.json.JSONObject().put("case",name).put("header",header).put("status",status)
-                            .put("button",retry.text.toString()).put("headerButton",headerAction).put("hintVisible",hint.isShown)
+                            .put("button",retry.text.toString()).put("headerButtonRemoved",true).put("hintVisible",hint.isShown)
                             .put("scaleAction",shell.findViewWithTag<Button>("task-shell-scale-reconnect").text.toString().removePrefix("\uFFFC"))
                             .put("mockBlePermissionMissing",host.activity.missingBle().isNotEmpty()))
                     }
@@ -188,9 +187,9 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                             capture("sleep-$name")
                             check(shell.findViewWithTag<Button>("task-shell-coffee-retry").visibility==View.GONE)
                             check(!shell.findViewWithTag<Button>("task-shell-coffee-retry").text.contains('\uFFFC'))
-                            val readyAction=host.viewField<Button>(fragment,"machineConnect")
-                            check(readyAction.text.toString()==host.activity.getString(R.string.home_visual_change))
-                            check(readyAction.compoundDrawablesRelative.all {it==null})
+                            check(fragment.requireView().findViewWithTag<View>("product/home/connect") == null) {
+                                "Connected header change action must remain removed"
+                            }
                             val button=shell.findViewWithTag<Button>("task-shell-sleep")
                             val label=button.text.toString()
                             val status=shell.findViewWithTag<TextView>("task-shell-coffee-status").text.toString().removePrefix("● ")
@@ -205,7 +204,19 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                                 check(label.length<=4 && status.length<=4) {"Sleep rail text exceeded four characters: $label / $status"}
                                 if(hint.isShown)check(hint.text.length<=4) {"Sleep hint exceeded four characters"}
                             }
-                            if(name=="last-confirmed")check(status==host.activity.getString(R.string.task_shell_sleep_history))
+                            if(name in setOf("asleep", "last-confirmed")) {
+                                check(status==host.activity.getString(R.string.task_shell_machine_asleep))
+                                check(label==host.activity.getString(R.string.task_shell_sleep_wake))
+                                check(!hint.isShown && button.isEnabled)
+                                var sleeps=0; var reconnects=0
+                                val probe=TaskShellStatusView(host.activity,{sleeps++},{},{},{},{},{reconnects++})
+                                probe.present(owner)
+                                probe.findViewWithTag<Button>("task-shell-sleep").performClick()
+                                check(sleeps==0 && reconnects==1) {"Wake guidance must only request connection recovery"}
+                                check(tracker.state==State.CONFIRMED && (owner.snapshot.coffee as IdleTelemetry).sleepStateRaw==1)
+                            } else {
+                                check(label==host.activity.getString(R.string.task_shell_action_sleep))
+                            }
                             checks.put(org.json.JSONObject().put("case",name).put("label",label).put("status",status)
                                 .put("hint",if(hint.isShown)hint.text.toString() else "").put("lines",button.layout.lineCount)
                                 .put("buttonWidthPx",button.width).put("railWidthPx",shell.width))
